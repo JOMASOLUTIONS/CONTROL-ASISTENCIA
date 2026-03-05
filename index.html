@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+
+body{
+font-family:sans-serif;
+padding:20px;
+text-align:center;
+background:#f4f7f6;
+}
+
+button,select{
+width:100%;
+padding:14px;
+margin:10px 0;
+border-radius:8px;
+border:1px solid #ccc;
+font-size:16px;
+}
+
+button{
+background:#2c3e50;
+color:white;
+font-weight:bold;
+border:none;
+}
+
+#video{
+width:100%;
+border-radius:10px;
+border:3px solid #2c3e50;
+background:black;
+}
+
+.status{
+font-weight:bold;
+min-height:20px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>JOMA SOLUTIONS - CONTROL ASISTENCIA</h2>
+
+<h3>Escanea tu QR</h3>
+
+<div id="qr-reader"></div>
+
+<p id="qr-status"></p>
+
+<hr>
+
+<video id="video" autoplay playsinline></video>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<button onclick="marcarSalida()">🔴 MARCAR SALIDA</button>
+
+<p id="status" class="status"></p>
+
+<script>
+
+const API_URL = "https://script.google.com/macros/s/AKfycbzm4Lo9H5sDQuM-M5f-4KQjWXXYxn2vkGyMjx9_E2YEqii0UlCr5CZplg9CziHbk2fD9A/exec";
+
+let trabajadorQR="";
+let video=document.getElementById("video");
+
+function iniciarQR(){
+
+const qr=new Html5Qrcode("qr-reader");
+
+qr.start(
+{facingMode:"environment"},
+{fps:10,qrbox:250},
+
+async qrMessage=>{
+
+trabajadorQR=qrMessage;
+
+document.getElementById("qr-status").innerText="Trabajador: "+qrMessage;
+
+qr.stop();
+
+await iniciarCamara();
+
+setTimeout(()=>{
+registrar("ENTRADA");
+},1200);
+
+},
+error=>{}
+
+);
+
+}
+
+async function iniciarCamara(){
+
+try{
+
+const stream=await navigator.mediaDevices.getUserMedia({
+video:{facingMode:"user"},
+audio:false
+});
+
+video.srcObject=stream;
+video.setAttribute("playsinline",true);
+video.muted=true;
+
+await video.play();
+
+}catch(e){
+
+alert("Debes permitir acceso a la cámara");
+
+}
+
+}
+
+function tomarFoto(){
+
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+canvas.width=video.videoWidth;
+canvas.height=video.videoHeight;
+
+ctx.drawImage(video,0,0);
+
+return canvas.toDataURL("image/jpeg",0.4);
+
+}
+
+function registrar(tipo){
+
+const status=document.getElementById("status");
+
+const foto=tomarFoto();
+
+navigator.geolocation.getCurrentPosition(async pos=>{
+
+const payload={
+
+trabajador:trabajadorQR,
+tipo:tipo,
+
+lat:pos.coords.latitude,
+long:pos.coords.longitude,
+
+foto:foto
+
+};
+
+status.innerText="Registrando...";
+
+await fetch(API_URL,{
+method:"POST",
+body:JSON.stringify(payload)
+});
+
+status.innerText="✅ Registro exitoso";
+
+},{
+enableHighAccuracy:true
+});
+
+}
+
+function marcarSalida(){
+registrar("SALIDA");
+}
+
+iniciarQR();
+
+</script>
+
+</body>
+
+</html>
