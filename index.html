@@ -3,63 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JOMA SOLUTIONS - Control Asistencia </title>
+    <title>JOMA SOLUTIONS - Registro Ágil</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 15px; text-align: center; background: #f4f7f6; max-width: 500px; margin: auto; }
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         select, button, input { width: 100%; padding: 15px; margin: 8px 0; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
-        button { color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.3s; }
+        button { color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.3s; height: 55px; }
         #video { width: 100%; border-radius: 10px; background: #000; transform: scaleX(-1); border: 3px solid #34495e; }
         .btn-in { background: #27ae60; }
         .btn-out { background: #c0392b; }
         .btn-qr { background: #3498db; }
-        .btn-in:disabled, .btn-out:disabled { background: #95a5a6 !important; opacity: 0.5; cursor: not-allowed; }
+        button:disabled { background: #95a5a6 !important; opacity: 0.6; cursor: not-allowed; }
         .admin-btn { background: #7f8c8d; font-size: 12px; width: auto; padding: 10px 20px; margin-top: 20px; }
         .hidden { display: none !important; }
-        .status { font-weight: bold; margin-top: 10px; padding: 8px; border-radius: 5px; background: #eee; }
+        .status { font-weight: bold; margin-top: 10px; padding: 8px; border-radius: 5px; background: #eee; min-height: 20px; }
         #qr-reader { width: 100%; border-radius: 10px; overflow: hidden; margin-bottom: 10px; border: 2px dashed #3498db; }
         #access-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #2c3e50; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
-        #admin-ui { background: #fdf2e9; padding: 15px; border: 2px solid #e67e22; border-radius: 10px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div id="access-screen">
     <h1>JOMA SOLUTIONS</h1>
-    <p>PIN de acceso App:</p>
+    <p>PIN de acceso:</p>
     <input type="password" id="appPin" style="width:180px; text-align:center; font-size:28px;" inputmode="numeric">
     <button onclick="validarAccesoApp()" style="width:200px; background:#27ae60; margin-top:20px;">INGRESAR</button>
 </div>
 
 <div class="container hidden" id="main-content">
-    <h2>JOMA SOLUTIONS</h2>
+    <h2 id="titulo">JOMA SOLUTIONS</h2>
     
     <div id="main-ui">
-        <button class="btn-qr" id="btnStartQr" onclick="alternarScanner()">📷 ESCANEAR MI QR</button>
+        <button class="btn-qr" id="btnStartQr" onclick="alternarScanner()">📷 ESCANEAR QR</button>
         <div id="qr-reader" class="hidden"></div>
 
-        <input type="text" id="nombreInput" placeholder="🔍 Nombre del trabajador..." list="listaT">
+        <input type="text" id="nombreInput" placeholder="🔍 Escribe nombre..." list="listaT">
         <datalist id="listaT"></datalist>
         
-        <p id="status" class="status">🛰️ Buscando señal GPS...</p>
-        <select id="obraUsuario" disabled><option value="">Calculando distancia...</option></select>
+        <p id="status" class="status">🛰️ GPS: Buscando...</p>
+        <select id="obraUsuario" disabled><option value="">Calculando...</option></select>
 
         <video id="video" autoplay playsinline muted></video>
         <canvas id="canvas" style="display:none;"></canvas>
         
         <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 INGRESO</button>
         <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 SALIDA</button>
-        <button class="admin-btn" id="btnAdminTrigger" onclick="mostrarLoginAdmin()">⚙️ MODO ADMIN</button>
+        <button class="admin-btn" onclick="mostrarLoginAdmin()">⚙️ MODO ADMIN</button>
     </div>
 
     <div id="admin-ui" class="hidden">
         <h3 style="color:#e67e22;">REGISTRO MANUAL</h3>
         <select id="obraAdmin"></select>
         <input type="datetime-local" id="manualTime">
-        <button id="btnInAdmin" class="btn-in" onclick="prepararEnvio('ENTRADA', 'ADMIN')">MARCAR ENTRADA MANUAL</button>
-        <button id="btnOutAdmin" class="btn-out" onclick="prepararEnvio('SALIDA', 'ADMIN')">MARCAR SALIDA MANUAL</button>
-        <button onclick="location.reload()" style="background:#7f8c8d;">VOLVER AL INICIO</button>
+        <button id="btnInAdmin" class="btn-in" onclick="prepararEnvio('ENTRADA', 'ADMIN')">MARCAR ENTRADA</button>
+        <button id="btnOutAdmin" class="btn-out" onclick="prepararEnvio('SALIDA', 'ADMIN')">MARCAR SALIDA</button>
+        <button onclick="location.reload()" style="background:#7f8c8d;">VOLVER</button>
     </div>
 </div>
 
@@ -69,9 +68,7 @@
     const PINS_ADMIN = ["012021", "0516"]; 
 
     let datosLocales = { trabajadores: [], obras: [] };
-    let geoLat = 0, geoLong = 0;
-    let streamActivo = null;
-    let html5QrCode = null;
+    let geoLat = 0, geoLong = 0, streamActivo = null, html5QrCode = null;
 
     function validarAccesoApp() {
         if (document.getElementById("appPin").value === PIN_ACCESO_APP) {
@@ -92,20 +89,15 @@
         try {
             streamActivo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
             document.getElementById('video').srcObject = streamActivo;
-        } catch (e) { console.error("Error cámara:", e); }
+        } catch (e) { console.error(e); }
     }
 
     function iniciarSeguimientoGPS() {
         if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(
-                pos => {
-                    geoLat = pos.coords.latitude;
-                    geoLong = pos.coords.longitude;
-                    actualizarObraCercana();
-                },
-                err => { document.getElementById("status").innerText = "⚠️ Activa el GPS"; },
-                { enableHighAccuracy: true, maximumAge: 0 }
-            );
+            navigator.geolocation.watchPosition(pos => {
+                geoLat = pos.coords.latitude; geoLong = pos.coords.longitude;
+                actualizarObraCercana();
+            }, null, { enableHighAccuracy: true });
         }
     }
 
@@ -120,36 +112,12 @@
         const statusTxt = document.getElementById("status");
         if (masCercana && minDist <= (masCercana.radio || 150)) {
             oUser.innerHTML = `<option value="${masCercana.nombre}">${masCercana.nombre}</option>`;
-            statusTxt.innerText = "📍 Ubicación Confirmada";
-            statusTxt.style.color = "green";
+            statusTxt.innerText = "📍 Ubicación OK"; statusTxt.style.color = "green";
             document.getElementById("btnIn").disabled = false;
             document.getElementById("btnOut").disabled = false;
         } else {
-            oUser.innerHTML = `<option value="">⚠️ Fuera de Rango</option>`;
-            statusTxt.innerText = "❌ No estás en una obra";
-            statusTxt.style.color = "red";
+            statusTxt.innerText = "❌ Fuera de obra"; statusTxt.style.color = "red";
         }
-    }
-
-    async function alternarScanner() {
-        const readerDiv = document.getElementById("qr-reader");
-        if (readerDiv.classList.contains("hidden")) {
-            if (streamActivo) streamActivo.getTracks().forEach(t => t.stop());
-            readerDiv.classList.remove("hidden");
-            document.getElementById("btnStartQr").innerText = "❌ CANCELAR";
-            html5QrCode = new Html5Qrcode("qr-reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (txt) => {
-                document.getElementById("nombreInput").value = txt;
-                detenerScanner();
-            }, () => {} ).catch(() => alert("Error al iniciar cámara trasera"));
-        } else { detenerScanner(); }
-    }
-
-    async function detenerScanner() {
-        if (html5QrCode) { await html5QrCode.stop(); html5QrCode = null; }
-        document.getElementById("qr-reader").classList.add("hidden");
-        document.getElementById("btnStartQr").innerText = "📷 ESCANEAR MI QR";
-        iniciarCamaraFrontal();
     }
 
     function cargarDatos() {
@@ -170,53 +138,36 @@
         const obra = (acceso === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
         if (!nombre || !obra) return alert("Faltan datos");
 
-        // Bloquear todos los botones de registro para evitar doble clic
-        document.getElementById("btnIn").disabled = true;
-        document.getElementById("btnOut").disabled = true;
-        document.getElementById("btnInAdmin").disabled = true;
-        document.getElementById("btnOutAdmin").disabled = true;
+        // BLOQUEO INMEDIATO PARA RAPIDEZ
+        const btnActivo = (acceso === 'ADMIN') ? 
+            (tipo === 'ENTRADA' ? document.getElementById("btnInAdmin") : document.getElementById("btnOutAdmin")) :
+            (tipo === 'ENTRADA' ? document.getElementById("btnIn") : document.getElementById("btnOut"));
+        
+        btnActivo.disabled = true;
+        btnActivo.innerText = "⏳ ENVIANDO...";
+        document.getElementById("status").innerText = "🚀 Procesando...";
 
-        document.getElementById("status").innerText = "⏳ Validando...";
-        fetch(`${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`)
-            .then(r => r.json()).then(val => {
-                if (acceso !== 'ADMIN' && val.ultimoTipo === tipo) {
-                    alert("Ya registraste una " + tipo + ".");
-                    // Reactivar si falla la validación
-                    document.getElementById("btnIn").disabled = false;
-                    document.getElementById("btnOut").disabled = false;
-                    document.getElementById("status").innerText = "❌ Registro duplicado";
-                } else {
-                    enviarRegistro(tipo, nombre, obra, acceso);
-                }
-            }).catch(e => {
-                alert("Error de conexión");
-                document.getElementById("btnIn").disabled = false;
-                document.getElementById("btnOut").disabled = false;
-            });
+        enviarRegistro(tipo, nombre, obra, acceso);
     }
 
     function enviarRegistro(tipo, nombre, obra, acceso) {
         let fotoFinal = "SIN_FOTO_ADMIN";
         
         if (acceso !== 'ADMIN') {
-            document.getElementById("status").innerText = "⏳ Procesando foto...";
             const canvas = document.getElementById('canvas');
             const video = document.getElementById('video');
             canvas.width = 640; canvas.height = 480;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, 640, 480);
-            ctx.font = "bold 20px Arial";
-            ctx.fillStyle = "yellow";
-            const txtFecha = new Date().toLocaleString();
-            const txtGPS = `GPS: ${geoLat.toFixed(5)}, ${geoLong.toFixed(5)}`;
-            ctx.fillText(txtFecha, 20, 430);
-            ctx.fillText(txtGPS, 20, 460);
+            ctx.font = "bold 20px Arial"; ctx.fillStyle = "yellow";
+            ctx.fillText(new Date().toLocaleString(), 20, 430);
+            ctx.fillText(`GPS: ${geoLat.toFixed(4)},${geoLong.toFixed(4)}`, 20, 460);
             fotoFinal = canvas.toDataURL('image/jpeg', 0.5);
         }
 
-        document.getElementById("status").innerText = "⏳ Enviando datos...";
         fetch(API_URL, {
             method: "POST",
+            mode: "no-cors", // Modo ultra-rápido: envía y no espera respuesta larga
             body: JSON.stringify({
                 trabajador: nombre, obra: obra, tipo: tipo,
                 lat: geoLat, long: geoLong, tipoAcceso: acceso,
@@ -224,12 +175,11 @@
                 manualTime: acceso === 'ADMIN' ? document.getElementById("manualTime").value : null
             })
         }).then(() => { 
-            alert("✅ Registro Guardado (" + acceso + ")"); 
+            alert("✅ ¡Hecho! Registro enviado."); 
             location.reload(); 
-        }).catch(e => {
-            alert("Error al enviar registro");
-            document.getElementById("btnIn").disabled = false;
-            document.getElementById("btnOut").disabled = false;
+        }).catch(() => {
+            alert("⚠️ Revisa tu conexión");
+            location.reload();
         });
     }
 
@@ -240,6 +190,27 @@
             document.getElementById("admin-ui").classList.remove("hidden");
             document.getElementById("obraAdmin").innerHTML = datosLocales.obras.map(o => `<option value="${o.nombre}">${o.nombre}</option>`).join('');
         } else { alert("PIN Incorrecto"); }
+    }
+
+    async function alternarScanner() {
+        const readerDiv = document.getElementById("qr-reader");
+        if (readerDiv.classList.contains("hidden")) {
+            if (streamActivo) streamActivo.getTracks().forEach(t => t.stop());
+            readerDiv.classList.remove("hidden");
+            document.getElementById("btnStartQr").innerText = "❌ CANCELAR";
+            html5QrCode = new Html5Qrcode("qr-reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (txt) => {
+                document.getElementById("nombreInput").value = txt;
+                detenerScanner();
+            }, () => {} ).catch(() => alert("Error cámara"));
+        } else { detenerScanner(); }
+    }
+
+    async function detenerScanner() {
+        if (html5QrCode) { await html5QrCode.stop(); html5QrCode = null; }
+        document.getElementById("qr-reader").classList.add("hidden");
+        document.getElementById("btnStartQr").innerText = "📷 ESCANEAR QR";
+        iniciarCamaraFrontal();
     }
 </script>
 </body>
