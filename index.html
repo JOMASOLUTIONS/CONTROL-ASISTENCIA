@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JOMA SOLUTIONS - Control Asistencia</title>
+    <title>JOMA SOLUTIONS - Control Asistencia </title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 15px; text-align: center; background: #f4f7f6; max-width: 500px; margin: auto; }
@@ -14,7 +14,7 @@
         .btn-in { background: #27ae60; }
         .btn-out { background: #c0392b; }
         .btn-qr { background: #3498db; }
-        .btn-in:disabled, .btn-out:disabled { background: #95a5a6; opacity: 0.5; }
+        .btn-in:disabled, .btn-out:disabled { background: #95a5a6 !important; opacity: 0.5; cursor: not-allowed; }
         .admin-btn { background: #7f8c8d; font-size: 12px; width: auto; padding: 10px 20px; margin-top: 20px; }
         .hidden { display: none !important; }
         .status { font-weight: bold; margin-top: 10px; padding: 8px; border-radius: 5px; background: #eee; }
@@ -50,15 +50,15 @@
         
         <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 INGRESO</button>
         <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 SALIDA</button>
-        <button class="admin-btn" onclick="mostrarLoginAdmin()">⚙️ MODO ADMIN</button>
+        <button class="admin-btn" id="btnAdminTrigger" onclick="mostrarLoginAdmin()">⚙️ MODO ADMIN</button>
     </div>
 
     <div id="admin-ui" class="hidden">
         <h3 style="color:#e67e22;">REGISTRO MANUAL</h3>
         <select id="obraAdmin"></select>
         <input type="datetime-local" id="manualTime">
-        <button class="btn-in" onclick="prepararEnvio('ENTRADA', 'ADMIN')">MARCAR ENTRADA MANUAL</button>
-        <button class="btn-out" onclick="prepararEnvio('SALIDA', 'ADMIN')">MARCAR SALIDA MANUAL</button>
+        <button id="btnInAdmin" class="btn-in" onclick="prepararEnvio('ENTRADA', 'ADMIN')">MARCAR ENTRADA MANUAL</button>
+        <button id="btnOutAdmin" class="btn-out" onclick="prepararEnvio('SALIDA', 'ADMIN')">MARCAR SALIDA MANUAL</button>
         <button onclick="location.reload()" style="background:#7f8c8d;">VOLVER AL INICIO</button>
     </div>
 </div>
@@ -170,14 +170,28 @@
         const obra = (acceso === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
         if (!nombre || !obra) return alert("Faltan datos");
 
+        // Bloquear todos los botones de registro para evitar doble clic
+        document.getElementById("btnIn").disabled = true;
+        document.getElementById("btnOut").disabled = true;
+        document.getElementById("btnInAdmin").disabled = true;
+        document.getElementById("btnOutAdmin").disabled = true;
+
         document.getElementById("status").innerText = "⏳ Validando...";
         fetch(`${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`)
             .then(r => r.json()).then(val => {
                 if (acceso !== 'ADMIN' && val.ultimoTipo === tipo) {
                     alert("Ya registraste una " + tipo + ".");
+                    // Reactivar si falla la validación
+                    document.getElementById("btnIn").disabled = false;
+                    document.getElementById("btnOut").disabled = false;
+                    document.getElementById("status").innerText = "❌ Registro duplicado";
                 } else {
                     enviarRegistro(tipo, nombre, obra, acceso);
                 }
+            }).catch(e => {
+                alert("Error de conexión");
+                document.getElementById("btnIn").disabled = false;
+                document.getElementById("btnOut").disabled = false;
             });
     }
 
@@ -209,7 +223,14 @@
                 foto: fotoFinal,
                 manualTime: acceso === 'ADMIN' ? document.getElementById("manualTime").value : null
             })
-        }).then(() => { alert("✅ Registro Guardado (" + acceso + ")"); location.reload(); });
+        }).then(() => { 
+            alert("✅ Registro Guardado (" + acceso + ")"); 
+            location.reload(); 
+        }).catch(e => {
+            alert("Error al enviar registro");
+            document.getElementById("btnIn").disabled = false;
+            document.getElementById("btnOut").disabled = false;
+        });
     }
 
     function mostrarLoginAdmin() {
