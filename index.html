@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JOMA SOLUTIONS - Registro Ágil</title>
+    <title>JOMA SOLUTIONS - Control Seguro</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 15px; text-align: center; background: #f4f7f6; max-width: 500px; margin: auto; }
@@ -138,14 +138,10 @@
         const obra = (acceso === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
         if (!nombre || !obra) return alert("Faltan datos");
 
-        // BLOQUEO INMEDIATO PARA RAPIDEZ
-        const btnActivo = (acceso === 'ADMIN') ? 
-            (tipo === 'ENTRADA' ? document.getElementById("btnInAdmin") : document.getElementById("btnOutAdmin")) :
-            (tipo === 'ENTRADA' ? document.getElementById("btnIn") : document.getElementById("btnOut"));
-        
-        btnActivo.disabled = true;
-        btnActivo.innerText = "⏳ ENVIANDO...";
-        document.getElementById("status").innerText = "🚀 Procesando...";
+        // Bloqueo de botones para evitar clics múltiples mientras esperamos a Google
+        document.getElementById("btnIn").disabled = true;
+        document.getElementById("btnOut").disabled = true;
+        document.getElementById("status").innerText = "⏳ Validando registro...";
 
         enviarRegistro(tipo, nombre, obra, acceso);
     }
@@ -165,21 +161,25 @@
             fotoFinal = canvas.toDataURL('image/jpeg', 0.5);
         }
 
+        // Modo normal (con comunicación) para detectar duplicados
         fetch(API_URL, {
             method: "POST",
-            mode: "no-cors", // Modo ultra-rápido: envía y no espera respuesta larga
             body: JSON.stringify({
                 trabajador: nombre, obra: obra, tipo: tipo,
                 lat: geoLat, long: geoLong, tipoAcceso: acceso,
                 foto: fotoFinal,
                 manualTime: acceso === 'ADMIN' ? document.getElementById("manualTime").value : null
             })
-        }).then(() => { 
-            alert("✅ ¡Hecho! Registro enviado."); 
+        })
+        .then(async (res) => {
+            // El alert solo sale si Google confirma el éxito
+            alert("✅ Registro Guardado"); 
             location.reload(); 
-        }).catch(() => {
-            alert("⚠️ Revisa tu conexión");
-            location.reload();
+        })
+        .catch(() => {
+            alert("⚠️ Error: Verifique su conexión o si ya marcó.");
+            document.getElementById("btnIn").disabled = false;
+            document.getElementById("btnOut").disabled = false;
         });
     }
 
