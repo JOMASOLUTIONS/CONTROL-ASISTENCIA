@@ -180,37 +180,43 @@
     }
 
     function enviarRegistro(tipo, nombre, obra, acceso) {
-        let fotoFinal = "SIN_FOTO_ADMIN";
-        if (acceso !== 'ADMIN') {
-            const canvas = document.getElementById('canvas');
-            const video = document.getElementById('video');
-            canvas.width = 640; canvas.height = 480;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, 640, 480);
-            ctx.font = "bold 20px Arial"; ctx.fillStyle = "yellow";
-            ctx.fillText(new Date().toLocaleString(), 20, 430);
-            ctx.fillText(`GPS: ${geoLat.toFixed(5)},${geoLong.toFixed(5)}`, 20, 460);
-            fotoFinal = canvas.toDataURL('image/jpeg', 0.5);
-        }
+    // BLOQUEO ANTIDUPLICADO INSTANTÁNEO
+    const btnIn = document.getElementById("btnIn");
+    const btnOut = document.getElementById("btnOut");
+    if (btnIn) btnIn.disabled = true;
+    if (btnOut) btnOut.disabled = true;
 
-        document.getElementById("status").innerText = "🚀 Guardando...";
-        fetch(API_URL, {
-            method: "POST",
-            body: JSON.stringify({
-                trabajador: nombre, obra: obra, tipo: tipo,
-                lat: geoLat, long: geoLong, tipoAcceso: acceso,
-                foto: fotoFinal,
-                manualTime: acceso === 'ADMIN' ? document.getElementById("manualTime").value : null
-            })
-        }).then(() => { 
-            alert("✅ Registro exitoso en JOMA SOLUTIONS"); 
-            location.reload(); 
-        }).catch(() => {
-            alert("Error al guardar.");
-            document.getElementById("btnIn").disabled = false;
-            document.getElementById("btnOut").disabled = false;
-        });
+    let fotoFinal = "SIN_FOTO_ADMIN";
+    if (acceso !== 'ADMIN') {
+        const canvas = document.getElementById('canvas');
+        const video = document.getElementById('video');
+        canvas.width = 640; canvas.height = 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, 640, 480);
+        fotoFinal = canvas.toDataURL('image/jpeg', 0.5);
     }
+
+    document.getElementById("status").innerText = "🚀 Guardando...";
+    
+    fetch(API_URL, {
+        method: "POST",
+        mode: 'no-cors', // Esto acelera la respuesta para evitar re-intentos
+        body: JSON.stringify({
+            trabajador: nombre, obra: obra, tipo: tipo,
+            lat: geoLat, long: geoLong, tipoAcceso: acceso,
+            foto: fotoFinal,
+            manualTime: acceso === 'ADMIN' ? document.getElementById("manualTime").value : null
+        })
+    }).then(() => { 
+        alert("✅ Registro exitoso"); 
+        location.reload(); 
+    }).catch(() => {
+        // Solo rehabilitar si hubo un error real de red
+        alert("Error al guardar.");
+        if (btnIn) btnIn.disabled = false;
+        if (btnOut) btnOut.disabled = false;
+    });
+}
 
     function mostrarLoginAdmin() {
         const p = prompt("PIN Admin:");
