@@ -1,188 +1,182 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<style>
-
-body{
-font-family:sans-serif;
-padding:20px;
-text-align:center;
-background:#f4f7f6;
-}
-
-button,select{
-width:100%;
-padding:14px;
-margin:10px 0;
-border-radius:8px;
-border:1px solid #ccc;
-font-size:16px;
-}
-
-button{
-background:#2c3e50;
-color:white;
-font-weight:bold;
-border:none;
-}
-
-#video{
-width:100%;
-border-radius:10px;
-border:3px solid #2c3e50;
-background:black;
-}
-
-.status{
-font-weight:bold;
-min-height:20px;
-}
-
-</style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JOMA SOLUTIONS - Asistencia Estable</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 15px; text-align: center; background: #f4f7f6; max-width: 500px; margin: auto; }
+        .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        select, button, input { width: 100%; padding: 15px; margin: 8px 0; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
+        button { color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.3s; }
+        #video { width: 100%; border-radius: 10px; background: #000; transform: scaleX(-1); border: 3px solid #34495e; }
+        .btn-in { background: #27ae60; }
+        .btn-out { background: #c0392b; }
+        .btn-qr { background: #3498db; }
+        .btn-in:disabled, .btn-out:disabled { background: #95a5a6; opacity: 0.5; }
+        .hidden { display: none !important; }
+        .status { font-weight: bold; margin-top: 10px; padding: 8px; border-radius: 5px; background: #eee; }
+        #qr-reader { width: 100%; border-radius: 10px; overflow: hidden; margin-bottom: 10px; border: 2px dashed #3498db; }
+    </style>
 </head>
-
 <body>
 
-<h2>JOMA SOLUTIONS - CONTROL ASISTENCIA</h2>
+<div class="container" id="main-content">
+    <h2>JOMA SOLUTIONS</h2>
+    
+    <button class="btn-qr" id="btnStartQr" onclick="alternarScanner()">📷 ESCANEAR MI QR</button>
+    <div id="qr-reader" class="hidden"></div>
 
-<h3>Escanea tu QR</h3>
+    <input type="text" id="nombreInput" placeholder="🔍 Nombre del trabajador..." list="listaT">
+    <datalist id="listaT"></datalist>
+    
+    <p id="status" class="status">🛰️ Buscando señal GPS...</p>
+    <select id="obraUsuario" disabled><option value="">Calculando distancia...</option></select>
 
-<div id="qr-reader"></div>
-
-<p id="qr-status"></p>
-
-<hr>
-
-<video id="video" autoplay playsinline></video>
-
-<canvas id="canvas" style="display:none;"></canvas>
-
-<button onclick="marcarSalida()">🔴 MARCAR SALIDA</button>
-
-<p id="status" class="status"></p>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    
+    <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 INGRESO</button>
+    <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 SALIDA</button>
+</div>
 
 <script>
+    // --- IMPORTANTE: PEGA TU URL DE GOOGLE AQUÍ ---
+    const API_URL = "https://script.google.com/macros/s/AKfycbzm4Lo9H5sDQuM-M5f-4KQjWXXYxn2vkGyMjx9_E2YEqii0UlCr5CZplg9CziHbk2fD9A/exec"; 
+    
+    let datosLocales = { trabajadores: [], obras: [] };
+    let geoLat = 0, geoLong = 0;
+    let streamActivo = null;
+    let html5QrCode = null;
+    let watchId = null;
 
-const API_URL = "https://script.google.com/macros/s/AKfycbzm4Lo9H5sDQuM-M5f-4KQjWXXYxn2vkGyMjx9_E2YEqii0UlCr5CZplg9CziHbk2fD9A/exec";
+    window.onload = () => {
+        iniciarCamaraFrontal();
+        iniciarSeguimientoGPS();
+        cargarDatos();
+    };
 
-let trabajadorQR="";
-let video=document.getElementById("video");
+    async function iniciarCamaraFrontal() {
+        if (streamActivo) streamActivo.getTracks().forEach(t => t.stop());
+        try {
+            streamActivo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            document.getElementById('video').srcObject = streamActivo;
+        } catch (e) { console.error("Error cámara:", e); }
+    }
 
-function iniciarQR(){
+    function iniciarSeguimientoGPS() {
+        if (navigator.geolocation) {
+            watchId = navigator.geolocation.watchPosition(
+                pos => {
+                    geoLat = pos.coords.latitude;
+                    geoLong = pos.coords.longitude;
+                    actualizarObraCercana();
+                },
+                err => { document.getElementById("status").innerText = "⚠️ Activa el GPS"; },
+                { enableHighAccuracy: true, maximumAge: 0 }
+            );
+        }
+    }
 
-const qr=new Html5Qrcode("qr-reader");
+    function actualizarObraCercana() {
+        if (!datosLocales.obras.length) return;
+        let masCercana = null;
+        let minDist = Infinity;
+        datosLocales.obras.forEach(ob => {
+            const d = calcularD(geoLat, geoLong, ob.lat, ob.long);
+            if (d < minDist) { minDist = d; masCercana = ob; }
+        });
+        const oUser = document.getElementById("obraUsuario");
+        const statusTxt = document.getElementById("status");
+        if (masCercana && minDist <= (masCercana.radio || 150)) {
+            oUser.innerHTML = `<option value="${masCercana.nombre}">${masCercana.nombre}</option>`;
+            statusTxt.innerText = "📍 Ubicación Confirmada";
+            statusTxt.style.color = "green";
+            document.getElementById("btnIn").disabled = false;
+            document.getElementById("btnOut").disabled = false;
+        } else {
+            oUser.innerHTML = `<option value="">⚠️ Fuera de Rango</option>`;
+            statusTxt.innerText = "❌ No estás en una obra";
+            statusTxt.style.color = "red";
+        }
+    }
 
-qr.start(
-{facingMode:"environment"},
-{fps:10,qrbox:250},
+    async function alternarScanner() {
+        const readerDiv = document.getElementById("qr-reader");
+        if (readerDiv.classList.contains("hidden")) {
+            if (streamActivo) streamActivo.getTracks().forEach(t => t.stop());
+            readerDiv.classList.remove("hidden");
+            document.getElementById("btnStartQr").innerText = "❌ CANCELAR";
+            html5QrCode = new Html5Qrcode("qr-reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 15, qrbox: 250 },
+                (txt) => {
+                    document.getElementById("nombreInput").value = txt;
+                    detenerScanner();
+                },
+                () => {}
+            ).catch(() => alert("Error al iniciar cámara trasera"));
+        } else {
+            detenerScanner();
+        }
+    }
 
-async qrMessage=>{
+    async function detenerScanner() {
+        if (html5QrCode) {
+            await html5QrCode.stop();
+            html5QrCode = null;
+        }
+        document.getElementById("qr-reader").classList.add("hidden");
+        document.getElementById("btnStartQr").innerText = "📷 ESCANEAR MI QR";
+        iniciarCamaraFrontal();
+    }
 
-trabajadorQR=qrMessage;
+    function cargarDatos() {
+        fetch(API_URL).then(r => r.json()).then(res => {
+            datosLocales = res;
+            document.getElementById("listaT").innerHTML = res.trabajadores.map(n => `<option value="${n}">`).join('');
+        });
+    }
 
-document.getElementById("qr-status").innerText="Trabajador: "+qrMessage;
+    function calcularD(l1, n1, l2, n2) {
+        const R = 6371000;
+        const dL = (l2-l1)*Math.PI/180; const dN = (n2-n1)*Math.PI/180;
+        const a = Math.sin(dL/2)**2 + Math.cos(l1*Math.PI/180)*Math.cos(l2*Math.PI/180)*Math.sin(dN/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
 
-qr.stop();
+    function prepararEnvio(tipo) {
+        const nombre = document.getElementById("nombreInput").value;
+        const obra = document.getElementById("obraUsuario").value;
+        if (!nombre || !obra) return alert("Faltan datos");
+        document.getElementById("status").innerText = "⏳ Validando...";
+        fetch(`${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`)
+            .then(r => r.json()).then(val => {
+                if (val.ultimoTipo === tipo) {
+                    alert("Ya registraste una " + tipo + ".");
+                } else {
+                    enviarRegistro(tipo, nombre, obra);
+                }
+            });
+    }
 
-await iniciarCamara();
-
-setTimeout(()=>{
-registrar("ENTRADA");
-},1200);
-
-},
-error=>{}
-
-);
-
-}
-
-async function iniciarCamara(){
-
-try{
-
-const stream=await navigator.mediaDevices.getUserMedia({
-video:{facingMode:"user"},
-audio:false
-});
-
-video.srcObject=stream;
-video.setAttribute("playsinline",true);
-video.muted=true;
-
-await video.play();
-
-}catch(e){
-
-alert("Debes permitir acceso a la cámara");
-
-}
-
-}
-
-function tomarFoto(){
-
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
-
-canvas.width=video.videoWidth;
-canvas.height=video.videoHeight;
-
-ctx.drawImage(video,0,0);
-
-return canvas.toDataURL("image/jpeg",0.4);
-
-}
-
-function registrar(tipo){
-
-const status=document.getElementById("status");
-
-const foto=tomarFoto();
-
-navigator.geolocation.getCurrentPosition(async pos=>{
-
-const payload={
-
-trabajador:trabajadorQR,
-tipo:tipo,
-
-lat:pos.coords.latitude,
-long:pos.coords.longitude,
-
-foto:foto
-
-};
-
-status.innerText="Registrando...";
-
-await fetch(API_URL,{
-method:"POST",
-body:JSON.stringify(payload)
-});
-
-status.innerText="✅ Registro exitoso";
-
-},{
-enableHighAccuracy:true
-});
-
-}
-
-function marcarSalida(){
-registrar("SALIDA");
-}
-
-iniciarQR();
-
+    function enviarRegistro(tipo, nombre, obra) {
+        document.getElementById("status").innerText = "⏳ Enviando...";
+        const canvas = document.getElementById('canvas');
+        const video = document.getElementById('video');
+        canvas.width = 640; canvas.height = 480;
+        canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+        fetch(API_URL, {
+            method: "POST",
+            body: JSON.stringify({
+                trabajador: nombre, obra: obra, tipo: tipo,
+                lat: geoLat, long: geoLong,
+                foto: canvas.toDataURL('image/jpeg', 0.5)
+            })
+        }).then(() => { alert("✅ Registro Guardado"); location.reload(); });
+    }
 </script>
-
 </body>
-
 </html>
