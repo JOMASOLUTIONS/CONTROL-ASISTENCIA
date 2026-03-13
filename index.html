@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JOMA SOLUTIONS - Control Seguro</title>
+    <title>JOMA SOLUTIONS - Control Estricto</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 15px; text-align: center; background: #f4f7f6; max-width: 500px; margin: auto; }
@@ -133,17 +133,35 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function prepararEnvio(tipo, acceso = 'AUTO') {
+    async function prepararEnvio(tipo, acceso = 'AUTO') {
         const nombre = document.getElementById("nombreInput").value;
         const obra = (acceso === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
         if (!nombre || !obra) return alert("Faltan datos");
 
-        // Bloqueo de botones para evitar clics múltiples mientras esperamos a Google
         document.getElementById("btnIn").disabled = true;
         document.getElementById("btnOut").disabled = true;
-        document.getElementById("status").innerText = "⏳ Validando registro...";
+        document.getElementById("status").innerText = "⏳ Validando estado...";
 
-        enviarRegistro(tipo, nombre, obra, acceso);
+        // VALIDACIÓN DE ESTADO CONTRA EL SERVIDOR
+        try {
+            const checkUrl = `${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`;
+            const response = await fetch(checkUrl);
+            const val = await response.json();
+
+            if (acceso !== 'ADMIN' && val.ultimoTipo === tipo) {
+                alert(`⚠️ Error: El trabajador ya tiene una ${tipo} registrada.`);
+                document.getElementById("btnIn").disabled = false;
+                document.getElementById("btnOut").disabled = false;
+                document.getElementById("status").innerText = "❌ Registro rechazado";
+                return;
+            }
+            
+            enviarRegistro(tipo, nombre, obra, acceso);
+        } catch (e) {
+            alert("Error de conexión al validar.");
+            document.getElementById("btnIn").disabled = false;
+            document.getElementById("btnOut").disabled = false;
+        }
     }
 
     function enviarRegistro(tipo, nombre, obra, acceso) {
@@ -161,7 +179,8 @@
             fotoFinal = canvas.toDataURL('image/jpeg', 0.5);
         }
 
-        // Modo normal (con comunicación) para detectar duplicados
+        document.getElementById("status").innerText = "🚀 Guardando en Excel...";
+
         fetch(API_URL, {
             method: "POST",
             body: JSON.stringify({
@@ -171,13 +190,12 @@
                 manualTime: acceso === 'ADMIN' ? document.getElementById("manualTime").value : null
             })
         })
-        .then(async (res) => {
-            // El alert solo sale si Google confirma el éxito
+        .then(() => { 
             alert("✅ Registro Guardado"); 
             location.reload(); 
         })
         .catch(() => {
-            alert("⚠️ Error: Verifique su conexión o si ya marcó.");
+            alert("⚠️ Error al guardar.");
             document.getElementById("btnIn").disabled = false;
             document.getElementById("btnOut").disabled = false;
         });
