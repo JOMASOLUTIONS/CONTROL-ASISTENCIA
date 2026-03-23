@@ -3,155 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JOMA SOLUTIONS - Control Estricto</title>
+    <title>JOMA SOLUTIONS</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; padding: 15px; text-align: center; background: #f4f7f6; max-width: 500px; margin: auto; }
-        .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        input, select, button { width: 100%; padding: 15px; margin: 10px 0; border-radius: 10px; border: 1px solid #ccc; font-size: 18px; box-sizing: border-box; }
-        button { color: white; font-weight: bold; border: none; cursor: pointer; height: 60px; }
+        body { font-family: sans-serif; padding: 20px; text-align: center; background: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        input { width: 100%; padding: 15px; margin: 10px 0; border-radius: 8px; border: 1px solid #ccc; font-size: 20px; box-sizing: border-box; text-align: center; }
+        button { width: 100%; padding: 15px; margin: 5px 0; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; font-size: 16px; }
         .btn-in { background: #27ae60; } .btn-out { background: #c0392b; }
-        button:disabled { background: #bdc3c7 !important; opacity: 0.5; cursor: not-allowed; }
-        #video { width: 100%; border-radius: 10px; background: #000; transform: scaleX(-1); border: 3px solid #34495e; }
-        .hidden { display: none !important; }
-        .status { font-weight: bold; margin: 10px 0; padding: 10px; border-radius: 8px; background: #eee; }
-        .welcome-msg { color: #27ae60; font-weight: bold; font-size: 22px; margin: 10px 0; min-height: 30px; }
-        #access-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #2c3e50; z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #video { width: 100%; border-radius: 10px; margin-top: 10px; transform: scaleX(-1); }
+        .msg { font-weight: bold; margin: 10px 0; color: #27ae60; font-size: 18px; }
+        .status-gps { font-size: 14px; color: #666; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-<div id="access-screen">
-    <h1>JOMA SOLUTIONS</h1>
-    <p>PIN de acceso App:</p>
-    <input type="password" id="appPin" style="width:160px; text-align:center; font-size:30px;" inputmode="numeric">
-    <button onclick="validarApp()" style="width:180px; background:#27ae60;">ENTRAR</button>
-</div>
-
-<div class="container hidden" id="main-content">
-    <h2>CONTROL ASISTENCIA</h2>
+<div class="card">
+    <h2>ASISTENCIA JOMA</h2>
     
-    <input type="password" id="userPinInput" placeholder="🔢 TU PIN DE 4 DÍGITOS" maxlength="4" inputmode="numeric" style="text-align:center; border: 2px solid #3498db; font-size: 24px;">
-    <div id="nombreDetectado" class="welcome-msg"></div>
-
-    <p id="status" class="status">🛰️ Buscando señal GPS...</p>
-    <select id="obraUsuario" disabled><option>Esperando ubicación...</option></select>
-
+    <input type="password" id="pinInput" placeholder="🔢 INGRESA TU PIN" maxlength="4" inputmode="numeric">
+    <div id="nombreUsuario" class="msg"></div>
+    
+    <p id="gpsStatus" class="status-gps">🛰️ Buscando GPS...</p>
+    
     <video id="video" autoplay playsinline muted></video>
     <canvas id="canvas" style="display:none;"></canvas>
 
-    <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 MARCAR INGRESO</button>
-    <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 MARCAR SALIDA</button>
+    <button id="btnIn" class="btn-in" onclick="registrar('ENTRADA')" disabled>MARCAR ENTRADA</button>
+    <button id="btnOut" class="btn-out" onclick="registrar('SALIDA')" disabled>MARCAR SALIDA</button>
     
-    <button onclick="location.reload()" style="background:#7f8c8d; height:40px; font-size:14px; margin-top:15px;">SALIR / CERRAR SESIÓN</button>
+    <button onclick="location.reload()" style="background:#7f8c8d; margin-top:15px; height:40px;">🔄 Limpiar Pantalla</button>
 </div>
 
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbzm4Lo9H5sDQuM-M5f-4KQjWXXYxn2vkGyMjx9_E2YEqii0UlCr5CZplg9CziHbk2fD9A/exec";
-    let datosLocales = { trabajadores: [], obras: [] }, geoLat = 0, geoLong = 0, empleadoActual = null;
+    const URL_GAS = "https://script.google.com/macros/s/AKfycbzm4Lo9H5sDQuM-M5f-4KQjWXXYxn2vkGyMjx9_E2YEqii0UlCr5CZplg9CziHbk2fD9A/exec";
+    let db = { trabajadores: [], obras: [] }, lat = 0, lon = 0, user = null, gpsOk = false;
 
-    function validarApp() {
-        if (document.getElementById("appPin").value === "2024") {
-            document.getElementById("access-screen").classList.add("hidden");
-            document.getElementById("main-content").classList.remove("hidden");
-            iniciar();
-        } else alert("PIN de App incorrecto");
+    // Inicializar cámara y datos
+    async function init() {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        document.getElementById('video').srcObject = stream;
+        
+        const res = await fetch(URL_GAS);
+        db = await res.json();
+
+        navigator.geolocation.watchPosition(p => {
+            lat = p.coords.latitude; lon = p.coords.longitude;
+            validar();
+        }, null, {enableHighAccuracy: true});
     }
 
-    function iniciar() {
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } }).then(s => document.getElementById('video').srcObject = s);
-        navigator.geolocation.watchPosition(p => { geoLat = p.coords.latitude; geoLong = p.coords.longitude; validarTodo(); }, null, {enableHighAccuracy:true});
-        fetch(API_URL).then(r => r.json()).then(res => { datosLocales = res; });
-    }
-
-    // VALIDACIÓN DE PIN TRABAJADOR
-    document.getElementById("userPinInput").addEventListener("input", function(e) {
-        const pin = e.target.value;
-        if (pin.length === 4) {
-            const user = datosLocales.trabajadores.find(t => String(t.pin) === pin);
-            if (user) {
-                empleadoActual = user.nombre;
-                document.getElementById("nombreDetectado").innerText = "👤 Hola, " + empleadoActual;
-                e.target.style.borderColor = "#27ae60";
-                e.target.disabled = true; // Bloquea el PIN una vez aceptado
-                validarTodo();
+    // Validar PIN
+    document.getElementById("pinInput").addEventListener("input", e => {
+        if (e.target.value.length === 4) {
+            const f = db.trabajadores.find(t => String(t.pin) === e.target.value);
+            if (f) {
+                user = f.nombre;
+                document.getElementById("nombreUsuario").innerText = "👤 " + user;
+                e.target.disabled = true;
+                validar();
             } else {
-                alert("PIN incorrecto o no registrado");
+                alert("PIN no válido");
                 e.target.value = "";
-                empleadoActual = null;
             }
         }
     });
 
-    function validarTodo() {
-        if (!datosLocales.obras.length) return;
-        
-        let obraCercana = null, minDist = Infinity;
-        datosLocales.obras.forEach(o => {
-            const d = calcD(geoLat, geoLong, o.lat, o.long);
-            if (d < minDist) { minDist = d; obraCercana = o; }
+    function validar() {
+        if (!db.obras.length) return;
+        const obra = db.obras.find(o => {
+            const d = Math.sqrt((lat-o.lat)**2 + (lon-o.long)**2) * 111320;
+            return d <= o.radio;
         });
 
-        const status = document.getElementById("status");
-        const obraSelect = document.getElementById("obraUsuario");
-
-        // SI HAY OBRA CERCA
-        if (obraCercana && minDist <= obraCercana.radio) {
-            obraSelect.innerHTML = `<option value="${obraCercana.nombre}">${obraCercana.nombre}</option>`;
-            status.innerText = "📍 UBICACIÓN OK"; status.style.color = "green";
-            
-            // SOLO ACTIVA BOTONES SI EL EMPLEADO YA PUSO SU PIN
-            if (empleadoActual) {
-                document.getElementById("btnIn").disabled = false;
-                document.getElementById("btnOut").disabled = false;
-            }
+        const status = document.getElementById("gpsStatus");
+        if (obra) {
+            status.innerText = "📍 Ubicación: " + obra.nombre;
+            status.style.color = "green";
+            gpsOk = true;
         } else {
-            status.innerText = "❌ FUERA DE RANGO"; status.style.color = "red";
-            document.getElementById("btnIn").disabled = true;
-            document.getElementById("btnOut").disabled = true;
-        }
-    }
-
-    function calcD(l1, n1, l2, n2) {
-        const R = 6371000, a = Math.sin(((l2-l1)*Math.PI/180)/2)**2 + Math.cos(l1*Math.PI/180)*Math.cos(l2*Math.PI/180)*Math.sin(((n2-n1)*Math.PI/180)/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
-
-    async function prepararEnvio(tipo) {
-        // DOBLE CANDADO: Si por algún error técnico empleadoActual es nulo, no deja enviar.
-        if (!empleadoActual) {
-            alert("Error: Identifícate con tu PIN primero.");
-            location.reload();
-            return;
+            status.innerText = "❌ Fuera de rango de obra";
+            status.style.color = "red";
+            gpsOk = false;
         }
 
-        const obra = document.getElementById("obraUsuario").value;
-        document.getElementById("status").innerText = "⏳ Verificando historial...";
-        
-        try {
-            const res = await fetch(`${API_URL}?nombre=${encodeURIComponent(empleadoActual)}&check=true`);
-            const val = await res.json();
-            if (val.ultimoTipo === tipo) { 
-                alert("⚠️ Ya registraste una " + tipo + " anteriormente."); 
-                location.reload(); 
-                return; 
-            }
-            enviar(tipo, empleadoActual, obra);
-        } catch (e) { enviar(tipo, empleadoActual, obra); }
+        document.getElementById("btnIn").disabled = !(gpsOk && user);
+        document.getElementById("btnOut").disabled = !(gpsOk && user);
     }
 
-    function enviar(tipo, nombre, obra) {
-        // DESACTIVA BOTONES AL CLIC PARA EVITAR DOBLE ENVÍO
+    async function registrar(tipo) {
         document.getElementById("btnIn").disabled = true;
         document.getElementById("btnOut").disabled = true;
 
-        const c = document.getElementById('canvas'), v = document.getElementById('video');
-        c.width = 640; c.height = 480;
-        c.getContext('2d').drawImage(v, 0, 0, 640, 480);
-        const foto = c.toDataURL('image/jpeg', 0.5);
+        const canvas = document.getElementById('canvas');
+        const video = document.getElementById('video');
+        canvas.width = 640; canvas.height = 480;
+        canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+        const foto = canvas.toDataURL('image/jpeg', 0.5);
+
+        const payload = { trabajador: user, tipo: tipo, lat: lat, long: lon, foto: foto, obra: document.getElementById("gpsStatus").innerText.replace("📍 Ubicación: ", ""), tipoAcceso: 'AUTO' };
         
-        fetch(API_URL, { method: "POST", mode: 'no-cors', body: JSON.stringify({ trabajador: nombre, obra: obra, tipo: tipo, lat: geoLat, long: geoLong, tipoAcceso: 'AUTO', foto: foto }) })
-        .then(() => { alert("✅ Registro Exitoso para: " + nombre); location.reload(); });
+        await fetch(URL_GAS, { method: "POST", mode: 'no-cors', body: JSON.stringify(payload) });
+        alert("✅ Registro guardado");
+        location.reload();
     }
+
+    init();
 </script>
 </body>
 </html>
