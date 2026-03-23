@@ -100,32 +100,38 @@
             document.getElementById("btnIn").disabled = true; document.getElementById("btnOut").disabled = true;
         }
     }
+async function validarYEnviar(tipoBoton, modo = 'AUTO') {
+    const nombre = (modo === 'ADMIN') ? document.getElementById("trabajadorAdmin").value : user;
+    const obra = (modo === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
 
-    // --- ESTA ES LA FUNCIÓN QUE REVISA EL HISTORIAL ---
-    async function validarYEnviar(tipo, modo = 'AUTO') {
-        const nombre = (modo === 'ADMIN') ? document.getElementById("trabajadorAdmin").value : user;
-        const obra = (modo === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
+    if (!nombre || !obra) return alert("Faltan datos");
 
-        if (!nombre || !obra) return alert("Faltan datos");
-
-        document.getElementById("status").innerText = "⏳ Verificando historial...";
+    // Desactivamos botones para evitar doble envío por accidente
+    document.getElementById("btnIn").disabled = true;
+    document.getElementById("btnOut").disabled = true;
+    document.getElementById("status").innerText = "⏳ Verificando historial...";
+    
+    try {
+        const response = await fetch(`${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`);
+        const data = await response.json();
         
-        try {
-            // Consultamos al Excel el último registro de esta persona
-            const res = await fetch(`${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`);
-            const historial = await res.json();
-            
-            // Si el último registro es igual al que intenta hacer ahora, bloqueamos
-            if (historial.ultimoTipo === (tipo === 'ENTRADA' ? 'INGRESO' : 'SALIDA')) {
-                alert(`⚠️ Error: ${nombre} ya tiene una ${tipo} registrada como último movimiento.`);
-                if(modo !== 'ADMIN') location.reload(); 
-                return;
-            }
-            
-            enviar(tipo, nombre, obra, modo);
-        } catch (e) {
-            // Si falla la verificación por red, intentamos enviar de todos modos
-            enviar(tipo, nombre, obra, modo);
+        // Convertimos el tipo de botón al término del Excel (INGRESO/SALIDA)
+        const tipoAValidar = (tipoBoton === 'ENTRADA' ? 'INGRESO' : 'SALIDA');
+
+        console.log("Último en Excel:", data.ultimoTipo, "Intento actual:", tipoAValidar);
+
+        if (data.ultimoTipo === tipoAValidar) {
+            alert(`🛑 BLOQUEADO: ${nombre} ya tiene un registro de ${tipoAValidar} como último movimiento.`);
+            location.reload(); 
+            return;
+        }
+        
+        // Si pasó la prueba, registramos
+        await enviar(tipoBoton, nombre, obra, modo);
+    } catch (e) {
+        alert("Error de conexión, intenta de nuevo.");
+        location.reload();
+    
         }
     }
 
