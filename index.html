@@ -14,41 +14,38 @@
         #video { width: 100%; border-radius: 10px; background: #000; transform: scaleX(-1); border: 2px solid #34495e; }
         .hidden { display: none !important; }
         .status { font-weight: bold; margin: 10px 0; padding: 10px; border-radius: 8px; background: #eee; min-height: 40px; }
-        .welcome-msg { color: #27ae60; font-weight: bold; font-size: 22px; margin: 10px 0; }
-        #userPin { border: 2px solid #3498db; text-align: center; font-size: 26px; }
+        .welcome-msg { color: #27ae60; font-weight: bold; font-size: 22px; margin: 10px 0; min-height: 30px; }
     </style>
 </head>
 <body>
 
 <div class="container" id="main-content">
-    <h2>ASISTENCIA JOMA</h2>
+    <h2 id="titulo">ASISTENCIA JOMA</h2>
     
     <div id="main-ui">
-        <input type="password" id="userPin" placeholder="🔢 INGRESA TU PIN" maxlength="4" inputmode="numeric">
+        <input type="password" id="userPin" placeholder="🔢 PIN TRABAJADOR" maxlength="4" inputmode="numeric" style="text-align:center; font-size:26px; border:2px solid #3498db;">
         <div id="nombreDetectado" class="welcome-msg"></div>
-
-        <p id="status" class="status">🛰️ Buscando señal GPS...</p>
-        <select id="obraUsuario" disabled><option>Esperando ubicación...</option></select>
-
+        <p id="status" class="status">🛰️ Buscando GPS...</p>
+        <select id="obraUsuario" disabled><option value="">Esperando validación...</option></select>
         <video id="video" autoplay playsinline muted></video>
         <canvas id="canvas" style="display:none;"></canvas>
-
-        <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 MARCAR INGRESO</button>
-        <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 MARCAR SALIDA</button>
-        
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button onclick="location.reload()" style="background:#7f8c8d; flex: 1; height: 45px; font-size: 14px;">🔄 Limpiar</button>
-            <button onclick="mostrarAdmin()" style="background:#34495e; flex: 1; height: 45px; font-size: 14px;">⚙️ Admin</button>
-        </div>
+        <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 INGRESO</button>
+        <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 SALIDA</button>
     </div>
 
     <div id="admin-ui" class="hidden">
-        <h3 style="color:#e67e22;">MODO MANUAL (ADMIN)</h3>
+        <h3 style="color:#e67e22;">REGISTRO MANUAL</h3>
+        <select id="trabajadorAdmin"></select>
         <select id="obraAdmin"></select>
+        <label>Fecha/Hora Manual:</label>
         <input type="datetime-local" id="manualTime">
-        <button class="btn-in" onclick="prepararEnvio('ENTRADA', 'ADMIN')">REGISTRAR ENTRADA</button>
-        <button class="btn-out" onclick="prepararEnvio('SALIDA', 'ADMIN')">REGISTRAR SALIDA</button>
-        <button onclick="location.reload()" style="background:#7f8c8d;">VOLVER</button>
+        <button class="btn-in" onclick="prepararEnvio('ENTRADA', 'ADMIN')">GRABAR ENTRADA</button>
+        <button class="btn-out" onclick="prepararEnvio('SALIDA', 'ADMIN')">GRABAR SALIDA</button>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button onclick="location.reload()" style="background:#7f8c8d; flex: 1; height: 45px; font-size: 14px;">🔄 Limpiar</button>
+        <button onclick="mostrarAdmin()" style="background:#34495e; flex: 1; height: 45px; font-size: 14px;">⚙️ Admin</button>
     </div>
 </div>
 
@@ -60,11 +57,10 @@
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
             document.getElementById('video').srcObject = stream;
-        } catch(e) { console.log("Cámara no disponible"); }
+        } catch(e) { console.warn("Sin cámara"); }
 
         navigator.geolocation.watchPosition(p => { 
-            geoLat = p.coords.latitude; 
-            geoLong = p.coords.longitude; 
+            geoLat = p.coords.latitude; geoLong = p.coords.longitude; 
             validarEstado(); 
         }, null, {enableHighAccuracy:true});
 
@@ -74,67 +70,74 @@
 
     document.getElementById("userPin").addEventListener("input", function(e) {
         if (e.target.value.length === 4) {
-            const trabajador = datosLocales.trabajadores.find(t => String(t.pin) === e.target.value);
-            if (trabajador) {
-                empleadoActual = trabajador.nombre;
-                document.getElementById("nombreDetectado").innerText = "👤 Hola, " + empleadoActual;
+            const t = datosLocales.trabajadores.find(x => String(x.pin) === e.target.value);
+            if (t) {
+                empleadoActual = t.nombre;
+                document.getElementById("nombreDetectado").innerText = "👤 " + empleadoActual;
                 e.target.disabled = true;
                 validarEstado();
-            } else {
-                alert("PIN no reconocido");
-                e.target.value = "";
-            }
+            } else { alert("PIN Incorrecto"); e.target.value = ""; }
         }
     });
 
     function validarEstado() {
         if (!datosLocales.obras.length) return;
         let obraCercana = null, minDist = Infinity;
-        
         datosLocales.obras.forEach(o => {
             const d = Math.sqrt((geoLat - o.lat)**2 + (geoLong - o.long)**2) * 111320;
             if (d < minDist) { minDist = d; obraCercana = o; }
         });
 
         const status = document.getElementById("status");
+        const obraSelect = document.getElementById("obraUsuario");
+
         if (obraCercana && minDist <= obraCercana.radio) {
-            document.getElementById("obraUsuario").innerHTML = `<option value="${obraCercana.nombre}">${obraCercana.nombre}</option>`;
-            status.innerText = "📍 UBICACIÓN VALIDADA"; status.style.color = "green";
+            obraSelect.innerHTML = `<option value="${obraCercana.nombre}">${obraCercana.nombre}</option>`;
+            status.innerText = "📍 EN OBRA: " + obraCercana.nombre;
+            status.style.color = "green";
             if (empleadoActual) {
                 document.getElementById("btnIn").disabled = false;
                 document.getElementById("btnOut").disabled = false;
             }
         } else {
-            status.innerText = "❌ FUERA DE RANGO"; status.style.color = "red";
+            status.innerText = "❌ FUERA DE RANGO (" + Math.round(minDist) + "m)";
+            status.style.color = "red";
+            obraSelect.innerHTML = `<option value="">Fuera de zona</option>`;
             document.getElementById("btnIn").disabled = true;
             document.getElementById("btnOut").disabled = true;
         }
     }
 
+    function mostrarAdmin() {
+        const pass = prompt("Clave Admin:");
+        if (["012021", "0516"].includes(pass)) {
+            document.getElementById("main-ui").classList.add("hidden");
+            document.getElementById("admin-ui").classList.remove("hidden");
+            document.getElementById("titulo").innerText = "PANEL ADMINISTRADOR";
+            
+            // Llenar listas de Admin con TODO
+            document.getElementById("trabajadorAdmin").innerHTML = datosLocales.trabajadores.map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
+            document.getElementById("obraAdmin").innerHTML = datosLocales.obras.map(o => `<option value="${o.nombre}">${o.nombre}</option>`).join('');
+        } else { alert("Acceso denegado"); }
+    }
+
     async function prepararEnvio(tipo, modo = 'AUTO') {
-        let nombre = empleadoActual;
-        let obra = document.getElementById("obraUsuario").value;
+        let nombre = (modo === 'ADMIN') ? document.getElementById("trabajadorAdmin").value : empleadoActual;
+        let obra = (modo === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
 
-        if (modo === 'ADMIN') {
-            nombre = prompt("Nombre completo del trabajador:");
-            obra = document.getElementById("obraAdmin").value;
-        }
+        if (!nombre || !obra) return alert("Faltan datos");
 
-        if (!nombre || !obra) return;
-
-        document.getElementById("status").innerText = "⏳ Guardando...";
-        
         const canvas = document.getElementById('canvas');
         const video = document.getElementById('video');
-        let foto = "SIN_FOTO_ADMIN";
-        
+        let foto = "REGISTRO_ADMIN";
+
         if (modo !== 'ADMIN') {
             canvas.width = 640; canvas.height = 480;
             canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
             foto = canvas.toDataURL('image/jpeg', 0.5);
         }
 
-        const datos = {
+        const payload = {
             trabajador: nombre,
             obra: obra,
             tipo: tipo,
@@ -145,18 +148,9 @@
             manualTime: modo === 'ADMIN' ? document.getElementById("manualTime").value : null
         };
 
-        await fetch(API_URL, { method: "POST", mode: 'no-cors', body: JSON.stringify(datos) });
-        alert("✅ Registro guardado");
+        await fetch(API_URL, { method: "POST", mode: 'no-cors', body: JSON.stringify(payload) });
+        alert("✅ Enviado correctamente");
         location.reload();
-    }
-
-    function mostrarAdmin() {
-        const pass = prompt("PIN de Administrador:");
-        if (["012021", "0516"].includes(pass)) {
-            document.getElementById("main-ui").classList.add("hidden");
-            document.getElementById("admin-ui").classList.remove("hidden");
-            document.getElementById("obraAdmin").innerHTML = datosLocales.obras.map(o => `<option value="${o.nombre}">${o.nombre}</option>`).join('');
-        } else { alert("PIN Incorrecto"); }
     }
 
     iniciar();
