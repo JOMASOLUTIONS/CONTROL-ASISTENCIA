@@ -1,191 +1,13 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JOMA SOLUTIONS - Control de Asistencia</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; padding: 15px; text-align: center; background: #f4f7f6; max-width: 500px; margin: auto; }
-        .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        select, button, input { width: 100%; padding: 15px; margin: 8px 0; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
-        button { color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.3s; height: 55px; }
-        #video { width: 100%; border-radius: 10px; background: #000; transform: scaleX(-1); border: 3px solid #34495e; }
-        .btn-in { background: #27ae60; }
-        .btn-out { background: #c0392b; }
-        .btn-qr { background: #3498db; }
-        button:disabled { background: #95a5a6 !important; opacity: 0.6; cursor: not-allowed; }
-        .admin-btn { background: #7f8c8d; font-size: 12px; width: auto; padding: 10px 20px; margin-top: 20px; }
-        .hidden { display: none !important; }
-        .status { font-weight: bold; margin-top: 10px; padding: 8px; border-radius: 5px; background: #eee; min-height: 20px; }
-        #qr-reader { width: 100%; border-radius: 10px; overflow: hidden; margin-bottom: 10px; border: 2px dashed #3498db; }
-        #access-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #2c3e50; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
-    </style>
-</head>
-<body>
+// ... (mantén todo lo anterior igual hasta la función enviarRegistro)
 
-<div id="access-screen">
-    <h1>JOMA SOLUTIONS</h1>
-    <p>PIN de acceso App:</p>
-    <input type="password" id="appPin" style="width:180px; text-align:center; font-size:28px;" inputmode="numeric">
-    <button onclick="validarAccesoApp()" style="width:200px; background:#27ae60; margin-top:20px;">INGRESAR</button>
-</div>
-
-<div class="container hidden" id="main-content">
-    <h2>JOMA SOLUTIONS</h2>
-    
-    <div id="main-ui">
-        <button class="btn-qr" id="btnStartQr" onclick="alternarScanner()">📷 ESCANEAR MI QR</button>
-        <div id="qr-reader" class="hidden"></div>
-
-        <input type="text" id="nombreInput" placeholder="🔍 Escribe tu nombre..." list="listaT">
-        <datalist id="listaT"></datalist>
-        
-        <p id="status" class="status">🛰️ Buscando señal GPS...</p>
-        <select id="obraUsuario" disabled><option value="">Calculando ubicación...</option></select>
-
-        <video id="video" autoplay playsinline muted></video>
-        <canvas id="canvas" style="display:none;"></canvas>
-        
-        <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 INGRESO</button>
-        <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 SALIDA</button>
-        <button class="admin-btn" onclick="mostrarLoginAdmin()">⚙️ MODO ADMIN</button>
-    </div>
-
-    <div id="admin-ui" class="hidden">
-        <h3 style="color:#e67e22;">REGISTRO MANUAL</h3>
-        <select id="obraAdmin"></select>
-        <input type="datetime-local" id="manualTime">
-        <button id="btnInAdmin" class="btn-in" onclick="prepararEnvio('ENTRADA', 'ADMIN')">MARCAR ENTRADA</button>
-        <button id="btnOutAdmin" class="btn-out" onclick="prepararEnvio('SALIDA', 'ADMIN')">MARCAR SALIDA</button>
-        <button onclick="location.reload()" style="background:#7f8c8d;">VOLVER AL INICIO</button>
-    </div>
-</div>
-
-<script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbzm4Lo9H5sDQuM-M5f-4KQjWXXYxn2vkGyMjx9_E2YEqii0UlCr5CZplg9CziHbk2fD9A/exec"; 
-    const PIN_ACCESO_APP = "2024"; 
-    const PINS_ADMIN = ["012021", "0516"]; 
-
-    let datosLocales = { trabajadores: [], obras: [] };
-    let geoLat = 0, geoLong = 0, streamActivo = null, html5QrCode = null;
-
-    function validarAccesoApp() {
-        if (document.getElementById("appPin").value === PIN_ACCESO_APP) {
-            document.getElementById("access-screen").style.display = "none";
-            document.getElementById("main-content").classList.remove("hidden");
-            iniciarApp();
-        } else { alert("PIN incorrecto"); }
-    }
-
-    function iniciarApp() {
-        iniciarCamaraFrontal();
-        iniciarSeguimientoGPS();
-        cargarDatos();
-    }
-
-    async function iniciarCamaraFrontal() {
-        if (streamActivo) streamActivo.getTracks().forEach(t => t.stop());
-        try {
-            streamActivo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-            document.getElementById('video').srcObject = streamActivo;
-        } catch (e) { console.error("Error cámara:", e); }
-    }
-
-    function iniciarSeguimientoGPS() {
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(pos => {
-                geoLat = pos.coords.latitude; geoLong = pos.coords.longitude;
-                actualizarObraCercana();
-            }, null, { enableHighAccuracy: true });
-        }
-    }
-
-    function actualizarObraCercana() {
-        // Filtrar obras activas basado en tu columna C
-        const obrasActivas = datosLocales.obras.filter(o => String(o.activa).toUpperCase() === "TRUE");
-        if (!obrasActivas.length) return;
-
-        let masCercana = null; let minDist = Infinity;
-        obrasActivas.forEach(ob => {
-            const d = calcularD(geoLat, geoLong, ob.lat, ob.long);
-            if (d < minDist) { minDist = d; masCercana = ob; }
-        });
-
-        const oUser = document.getElementById("obraUsuario");
-        const statusTxt = document.getElementById("status");
-        
-        // El margen ahora viene de tu columna F (radio)
-        const margenRadio = (masCercana && masCercana.radio) ? parseFloat(masCercana.radio) : 150;
-
-        if (masCercana && minDist <= margenRadio) {
-            oUser.innerHTML = `<option value="${masCercana.nombre}">${masCercana.nombre}</option>`;
-            statusTxt.innerText = "📍 Ubicación Validada"; statusTxt.style.color = "green";
-            document.getElementById("btnIn").disabled = false;
-            document.getElementById("btnOut").disabled = false;
-        } else {
-            statusTxt.innerText = "❌ Fuera de Obra"; statusTxt.style.color = "red";
-            document.getElementById("btnIn").disabled = true;
-            document.getElementById("btnOut").disabled = true;
-        }
-    }
-
-    function cargarDatos() {
-        fetch(API_URL).then(r => r.json()).then(res => {
-            datosLocales = res;
-            
-            // Filtro trabajadores activos basado en tu columna D
-            // Se asume que en el JSON viene una lista mapeada correctamente
-            const listaActivos = res.trabajadores_detalles.filter(t => String(t.activo).toUpperCase() === "TRUE");
-            document.getElementById("listaT").innerHTML = listaActivos.map(t => `<option value="${t.nombre}">`).join('');
-            
-            actualizarObraCercana();
-        });
-    }
-
-    function calcularD(l1, n1, l2, n2) {
-        const R = 6371000;
-        const a = Math.sin(((l2-l1)*Math.PI/180)/2)**2 + Math.cos(l1*Math.PI/180)*Math.cos(l2*Math.PI/180)*Math.sin(((n2-n1)*Math.PI/180)/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
-
-    async function prepararEnvio(tipo, acceso = 'AUTO') {
-        const nombre = document.getElementById("nombreInput").value;
-        const obra = (acceso === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
-        if (!nombre || !obra) return alert("Faltan datos");
-
-        document.getElementById("btnIn").disabled = true;
-        document.getElementById("btnOut").disabled = true;
-        document.getElementById("status").innerText = "⏳ Verificando registros...";
-
-        try {
-            // Validación obligatoria contra la hoja "registros" antes de dejar marcar
-            const response = await fetch(`${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`);
-            const val = await response.json();
-
-            if (acceso !== 'ADMIN' && val.ultimoTipo === tipo) {
-                alert(`⚠️ ${nombre} ya tiene una ${tipo} registrada en la hoja de registros.`);
-                document.getElementById("btnIn").disabled = false;
-                document.getElementById("btnOut").disabled = false;
-                document.getElementById("status").innerText = "❌ Registro Rechazado";
-                return;
-            }
-            
-            enviarRegistro(tipo, nombre, obra, acceso);
-        } catch (e) {
-            alert("Error al conectar con la base de datos.");
-            document.getElementById("btnIn").disabled = false;
-            document.getElementById("btnOut").disabled = false;
-        }
-    }
-
-    function enviarRegistro(tipo, nombre, obra, acceso) {
-    // BLOQUEO ANTIDUPLICADO INSTANTÁNEO
+function enviarRegistro(tipo, nombre, obra, acceso) {
+    // 1. BLOQUEO ANTIDUPLICADO INSTANTÁNEO
     const btnIn = document.getElementById("btnIn");
     const btnOut = document.getElementById("btnOut");
     if (btnIn) btnIn.disabled = true;
     if (btnOut) btnOut.disabled = true;
 
+    // 2. PROCESAMIENTO DE FOTO
     let fotoFinal = "SIN_FOTO_ADMIN";
     if (acceso !== 'ADMIN') {
         const canvas = document.getElementById('canvas');
@@ -193,61 +15,40 @@
         canvas.width = 640; canvas.height = 480;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, 640, 480);
+        
+        // Añadimos marca de agua (opcional, ayuda a la auditoría)
+        ctx.font = "bold 20px Arial"; ctx.fillStyle = "yellow";
+        ctx.fillText(new Date().toLocaleString(), 20, 430);
+        ctx.fillText(`GPS: ${geoLat.toFixed(5)},${geoLong.toFixed(5)}`, 20, 460);
+        
         fotoFinal = canvas.toDataURL('image/jpeg', 0.5);
     }
 
     document.getElementById("status").innerText = "🚀 Guardando...";
     
+    // 3. ENVÍO DE DATOS
     fetch(API_URL, {
         method: "POST",
-        mode: 'no-cors', // Esto acelera la respuesta para evitar re-intentos
+        mode: 'no-cors', 
         body: JSON.stringify({
-            trabajador: nombre, obra: obra, tipo: tipo,
-            lat: geoLat, long: geoLong, tipoAcceso: acceso,
+            trabajador: nombre, 
+            obra: obra, 
+            tipo: tipo,
+            lat: geoLat, 
+            long: geoLong, 
+            tipoAcceso: acceso,
             foto: fotoFinal,
             manualTime: acceso === 'ADMIN' ? document.getElementById("manualTime").value : null
         })
     }).then(() => { 
-        alert("✅ Registro exitoso"); 
+        alert("✅ Registro exitoso en JOMA SOLUTIONS"); 
         location.reload(); 
-    }).catch(() => {
-        // Solo rehabilitar si hubo un error real de red
-        alert("Error al guardar.");
+    }).catch((err) => {
+        console.error("Error:", err);
+        alert("Error al guardar. Intenta de nuevo.");
         if (btnIn) btnIn.disabled = false;
         if (btnOut) btnOut.disabled = false;
     });
 }
 
-    function mostrarLoginAdmin() {
-        const p = prompt("PIN Admin:");
-        if (PINS_ADMIN.includes(p)) {
-            document.getElementById("main-ui").classList.add("hidden");
-            document.getElementById("admin-ui").classList.remove("hidden");
-            const obrasActivas = datosLocales.obras.filter(o => String(o.activa).toUpperCase() === "TRUE");
-            document.getElementById("obraAdmin").innerHTML = obrasActivas.map(o => `<option value="${o.nombre}">${o.nombre}</option>`).join('');
-        } else { alert("PIN Incorrecto"); }
-    }
-
-    async function alternarScanner() {
-        const readerDiv = document.getElementById("qr-reader");
-        if (readerDiv.classList.contains("hidden")) {
-            if (streamActivo) streamActivo.getTracks().forEach(t => t.stop());
-            readerDiv.classList.remove("hidden");
-            document.getElementById("btnStartQr").innerText = "❌ CANCELAR";
-            html5QrCode = new Html5Qrcode("qr-reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (txt) => {
-                document.getElementById("nombreInput").value = txt;
-                detenerScanner();
-            }, () => {} ).catch(() => alert("Error cámara"));
-        } else { detenerScanner(); }
-    }
-
-    async function detenerScanner() {
-        if (html5QrCode) { await html5QrCode.stop(); html5QrCode = null; }
-        document.getElementById("qr-reader").classList.add("hidden");
-        document.getElementById("btnStartQr").innerText = "📷 ESCANEAR MI QR";
-        iniciarCamaraFrontal();
-    }
-</script>
-</body>
-</html>
+// ... (continúa con mostrarLoginAdmin y demás funciones)
