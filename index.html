@@ -204,28 +204,26 @@
             if (btnOut) btnOut.disabled = false;
         });
     }
-
-    function mostrarLoginAdmin() {
+function mostrarLoginAdmin() {
     const p = prompt("PIN Admin:");
     if (PINS_ADMIN.includes(p)) {
         document.getElementById("main-ui").classList.add("hidden");
         document.getElementById("admin-ui").classList.remove("hidden");
         
-        // CORRECCIÓN AQUÍ: Aseguramos que cargue las obras activas correctamente
-        const listaObras = datosLocales.obras || [];
+        // Cargamos las obras que ya tenemos en memoria
         const selectorAdmin = document.getElementById("obraAdmin");
-        
-        if (listaObras.length > 0) {
-            selectorAdmin.innerHTML = listaObras.map(o => 
+        if (datosLocales.obras && datosLocales.obras.length > 0) {
+            selectorAdmin.innerHTML = datosLocales.obras.map(o => 
                 `<option value="${o.nombre}">${o.nombre}</option>`
             ).join('');
         } else {
-            selectorAdmin.innerHTML = '<option value="">No hay obras activas</option>';
+            selectorAdmin.innerHTML = '<option value="">Cargando obras...</option>';
+            // Si por algo no han cargado, intentamos pedirlas de nuevo
+            cargarDatos(); 
         }
-    } else { 
-        alert("PIN Incorrecto"); 
-    }
+    } else { alert("PIN Incorrecto"); }
 }
+    
 
     async function alternarScanner() {
         const readerDiv = document.getElementById("qr-reader");
