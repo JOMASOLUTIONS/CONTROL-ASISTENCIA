@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JOMA SOLUTIONS - Asistencia</title>
+    <title>JOMA SOLUTIONS - Control Total</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 15px; text-align: center; background: #f4f7f6; max-width: 500px; margin: auto; }
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
@@ -29,18 +29,17 @@
         <select id="obraUsuario" disabled><option value="">Esperando validación...</option></select>
         <video id="video" autoplay playsinline muted></video>
         <canvas id="canvas" style="display:none;"></canvas>
-        <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 INGRESO</button>
-        <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 SALIDA</button>
+        <button id="btnIn" class="btn-in" onclick="validarYEnviar('ENTRADA')" disabled>🟢 INGRESO</button>
+        <button id="btnOut" class="btn-out" onclick="validarYEnviar('SALIDA')" disabled>🔴 SALIDA</button>
     </div>
 
     <div id="admin-ui" class="hidden">
         <h3 style="color:#e67e22;">REGISTRO MANUAL</h3>
         <select id="trabajadorAdmin"></select>
         <select id="obraAdmin"></select>
-        <label>Fecha/Hora Manual:</label>
         <input type="datetime-local" id="manualTime">
-        <button class="btn-in" onclick="prepararEnvio('ENTRADA', 'ADMIN')">GRABAR ENTRADA</button>
-        <button class="btn-out" onclick="prepararEnvio('SALIDA', 'ADMIN')">GRABAR SALIDA</button>
+        <button class="btn-in" onclick="validarYEnviar('ENTRADA', 'ADMIN')">GRABAR ENTRADA</button>
+        <button class="btn-out" onclick="validarYEnviar('SALIDA', 'ADMIN')">GRABAR SALIDA</button>
     </div>
 
     <div style="display: flex; gap: 10px; margin-top: 20px;">
@@ -51,82 +50,86 @@
 
 <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbzm4Lo9H5sDQuM-M5f-4KQjWXXYxn2vkGyMjx9_E2YEqii0UlCr5CZplg9CziHbk2fD9A/exec";
-    let datosLocales = { trabajadores: [], obras: [] }, geoLat = 0, geoLong = 0, empleadoActual = null;
+    let db = { trabajadores: [], obras: [] }, lat = 0, lon = 0, user = null;
 
     async function iniciar() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-            document.getElementById('video').srcObject = stream;
-        } catch(e) { console.warn("Sin cámara"); }
+            const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            document.getElementById('video').srcObject = s;
+        } catch(e) {}
 
         navigator.geolocation.watchPosition(p => { 
-            geoLat = p.coords.latitude; geoLong = p.coords.longitude; 
-            validarEstado(); 
+            lat = p.coords.latitude; lon = p.coords.longitude; 
+            actualizarGPS(); 
         }, null, {enableHighAccuracy:true});
 
-        const res = await fetch(API_URL);
-        datosLocales = await res.json();
+        const r = await fetch(API_URL);
+        db = await r.json();
     }
 
     document.getElementById("userPin").addEventListener("input", function(e) {
         if (e.target.value.length === 4) {
-            const t = datosLocales.trabajadores.find(x => String(x.pin) === e.target.value);
+            const t = db.trabajadores.find(x => String(x.pin) === e.target.value);
             if (t) {
-                empleadoActual = t.nombre;
-                document.getElementById("nombreDetectado").innerText = "👤 " + empleadoActual;
+                user = t.nombre;
+                document.getElementById("nombreDetectado").innerText = "👤 " + user;
                 e.target.disabled = true;
-                validarEstado();
+                actualizarGPS();
             } else { alert("PIN Incorrecto"); e.target.value = ""; }
         }
     });
 
-    function validarEstado() {
-        if (!datosLocales.obras.length) return;
-        let obraCercana = null, minDist = Infinity;
-        datosLocales.obras.forEach(o => {
-            const d = Math.sqrt((geoLat - o.lat)**2 + (geoLong - o.long)**2) * 111320;
-            if (d < minDist) { minDist = d; obraCercana = o; }
+    function actualizarGPS() {
+        if (!db.obras.length) return;
+        let cercana = null, minDist = Infinity;
+        db.obras.forEach(o => {
+            const d = Math.sqrt((lat - o.lat)**2 + (lon - o.long)**2) * 111320;
+            if (d < minDist) { minDist = d; cercana = o; }
         });
 
-        const status = document.getElementById("status");
-        const obraSelect = document.getElementById("obraUsuario");
+        const st = document.getElementById("status");
+        const sel = document.getElementById("obraUsuario");
 
-        if (obraCercana && minDist <= obraCercana.radio) {
-            obraSelect.innerHTML = `<option value="${obraCercana.nombre}">${obraCercana.nombre}</option>`;
-            status.innerText = "📍 EN OBRA: " + obraCercana.nombre;
-            status.style.color = "green";
-            if (empleadoActual) {
-                document.getElementById("btnIn").disabled = false;
-                document.getElementById("btnOut").disabled = false;
-            }
+        if (cercana && minDist <= cercana.radio) {
+            sel.innerHTML = `<option value="${cercana.nombre}">${cercana.nombre}</option>`;
+            st.innerText = "📍 EN OBRA: " + cercana.nombre; st.style.color = "green";
+            if (user) { document.getElementById("btnIn").disabled = false; document.getElementById("btnOut").disabled = false; }
         } else {
-            status.innerText = "❌ FUERA DE RANGO (" + Math.round(minDist) + "m)";
-            status.style.color = "red";
-            obraSelect.innerHTML = `<option value="">Fuera de zona</option>`;
-            document.getElementById("btnIn").disabled = true;
-            document.getElementById("btnOut").disabled = true;
+            st.innerText = "❌ FUERA DE RANGO"; st.style.color = "red";
+            sel.innerHTML = `<option value="">Fuera de zona</option>`;
+            document.getElementById("btnIn").disabled = true; document.getElementById("btnOut").disabled = true;
         }
     }
 
-    function mostrarAdmin() {
-        const pass = prompt("Clave Admin:");
-        if (["012021", "0516"].includes(pass)) {
-            document.getElementById("main-ui").classList.add("hidden");
-            document.getElementById("admin-ui").classList.remove("hidden");
-            document.getElementById("titulo").innerText = "PANEL ADMINISTRADOR";
-            
-            // Llenar listas de Admin con TODO
-            document.getElementById("trabajadorAdmin").innerHTML = datosLocales.trabajadores.map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
-            document.getElementById("obraAdmin").innerHTML = datosLocales.obras.map(o => `<option value="${o.nombre}">${o.nombre}</option>`).join('');
-        } else { alert("Acceso denegado"); }
-    }
-
-    async function prepararEnvio(tipo, modo = 'AUTO') {
-        let nombre = (modo === 'ADMIN') ? document.getElementById("trabajadorAdmin").value : empleadoActual;
-        let obra = (modo === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
+    // --- ESTA ES LA FUNCIÓN QUE REVISA EL HISTORIAL ---
+    async function validarYEnviar(tipo, modo = 'AUTO') {
+        const nombre = (modo === 'ADMIN') ? document.getElementById("trabajadorAdmin").value : user;
+        const obra = (modo === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
 
         if (!nombre || !obra) return alert("Faltan datos");
 
+        document.getElementById("status").innerText = "⏳ Verificando historial...";
+        
+        try {
+            // Consultamos al Excel el último registro de esta persona
+            const res = await fetch(`${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`);
+            const historial = await res.json();
+            
+            // Si el último registro es igual al que intenta hacer ahora, bloqueamos
+            if (historial.ultimoTipo === (tipo === 'ENTRADA' ? 'INGRESO' : 'SALIDA')) {
+                alert(`⚠️ Error: ${nombre} ya tiene una ${tipo} registrada como último movimiento.`);
+                if(modo !== 'ADMIN') location.reload(); 
+                return;
+            }
+            
+            enviar(tipo, nombre, obra, modo);
+        } catch (e) {
+            // Si falla la verificación por red, intentamos enviar de todos modos
+            enviar(tipo, nombre, obra, modo);
+        }
+    }
+
+    async function enviar(tipo, nombre, obra, modo) {
         const canvas = document.getElementById('canvas');
         const video = document.getElementById('video');
         let foto = "REGISTRO_ADMIN";
@@ -138,19 +141,24 @@
         }
 
         const payload = {
-            trabajador: nombre,
-            obra: obra,
-            tipo: tipo,
-            lat: geoLat,
-            long: geoLong,
-            tipoAcceso: modo,
-            foto: foto,
+            trabajador: nombre, obra: obra, tipo: tipo, lat: lat, long: lon,
+            tipoAcceso: modo, foto: foto,
             manualTime: modo === 'ADMIN' ? document.getElementById("manualTime").value : null
         };
 
         await fetch(API_URL, { method: "POST", mode: 'no-cors', body: JSON.stringify(payload) });
-        alert("✅ Enviado correctamente");
+        alert("✅ Registro guardado para " + nombre);
         location.reload();
+    }
+
+    function mostrarAdmin() {
+        const pass = prompt("Clave Admin:");
+        if (["012021", "0516"].includes(pass)) {
+            document.getElementById("main-ui").classList.add("hidden");
+            document.getElementById("admin-ui").classList.remove("hidden");
+            document.getElementById("trabajadorAdmin").innerHTML = db.trabajadores.map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
+            document.getElementById("obraAdmin").innerHTML = db.obras.map(o => `<option value="${o.nombre}">${o.nombre}</option>`).join('');
+        } else alert("Acceso denegado");
     }
 
     iniciar();
