@@ -3,21 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JOMA SOLUTIONS - Control PIN</title>
+    <title>JOMA SOLUTIONS - Control Estricto</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 15px; text-align: center; background: #f4f7f6; max-width: 500px; margin: auto; }
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         input, select, button { width: 100%; padding: 15px; margin: 10px 0; border-radius: 10px; border: 1px solid #ccc; font-size: 18px; box-sizing: border-box; }
-        button { color: white; font-weight: bold; border: none; cursor: pointer; height: 60px; transition: 0.3s; }
+        button { color: white; font-weight: bold; border: none; cursor: pointer; height: 60px; }
         .btn-in { background: #27ae60; } .btn-out { background: #c0392b; }
-        button:disabled { background: #bdc3c7 !important; cursor: not-allowed; opacity: 0.6; }
+        button:disabled { background: #bdc3c7 !important; opacity: 0.5; cursor: not-allowed; }
         #video { width: 100%; border-radius: 10px; background: #000; transform: scaleX(-1); border: 3px solid #34495e; }
         .hidden { display: none !important; }
-        .status { font-weight: bold; margin: 10px 0; padding: 10px; border-radius: 8px; background: #eee; min-height: 40px; }
-        #access-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #2c3e50; z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
+        .status { font-weight: bold; margin: 10px 0; padding: 10px; border-radius: 8px; background: #eee; }
         .welcome-msg { color: #27ae60; font-weight: bold; font-size: 22px; margin: 10px 0; min-height: 30px; }
-        #userPin { border: 2px solid #3498db; text-align: center; font-size: 26px; }
-        .pin-ok { border-color: #27ae60 !important; background-color: #eafaf1; }
+        #access-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #2c3e50; z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
     </style>
 </head>
 <body>
@@ -25,49 +23,135 @@
 <div id="access-screen">
     <h1>JOMA SOLUTIONS</h1>
     <p>PIN de acceso App:</p>
-    <input type="password" id="appPin" style="width:180px; text-align:center; font-size:30px;" inputmode="numeric">
-    <button onclick="validarApp()" style="width:200px; background:#27ae60;">INGRESAR</button>
+    <input type="password" id="appPin" style="width:160px; text-align:center; font-size:30px;" inputmode="numeric">
+    <button onclick="validarApp()" style="width:180px; background:#27ae60;">ENTRAR</button>
 </div>
 
 <div class="container hidden" id="main-content">
-    <h2>REGISTRO DE ASISTENCIA</h2>
+    <h2>CONTROL ASISTENCIA</h2>
     
-    <div id="main-ui">
-        <p style="margin-bottom: 5px; font-weight: bold;">Identificación:</p>
-        <input type="password" id="userPin" placeholder="INGRESA TU PIN" maxlength="4" inputmode="numeric">
-        <div id="nombreDetectado" class="welcome-msg"></div>
+    <input type="password" id="userPinInput" placeholder="🔢 TU PIN DE 4 DÍGITOS" maxlength="4" inputmode="numeric" style="text-align:center; border: 2px solid #3498db; font-size: 24px;">
+    <div id="nombreDetectado" class="welcome-msg"></div>
 
-        <p id="status" class="status">🛰️ Buscando señal GPS...</p>
-        <select id="obraUsuario" disabled><option>Esperando ubicación...</option></select>
+    <p id="status" class="status">🛰️ Buscando señal GPS...</p>
+    <select id="obraUsuario" disabled><option>Esperando ubicación...</option></select>
 
-        <video id="video" autoplay playsinline muted></video>
-        <canvas id="canvas" style="display:none;"></canvas>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas" style="display:none;"></canvas>
 
-        <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 MARCAR INGRESO</button>
-        <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 MARCAR SALIDA</button>
-        
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button onclick="location.reload()" style="background:#7f8c8d; flex: 1; height: 45px; font-size: 14px;">Limpiar / Salir</button>
-            <button onclick="mostrarAdmin()" style="background:#34495e; flex: 1; height: 45px; font-size: 14px;">⚙️ Admin</button>
-        </div>
-    </div>
-
-    <div id="admin-ui" class="hidden">
-        <h3 style="color:#e67e22;">MODO MANUAL (ADMIN)</h3>
-        <select id="obraAdmin"></select>
-        <input type="datetime-local" id="manualTime">
-        <button class="btn-in" onclick="prepararEnvio('ENTRADA', 'ADMIN')">REGISTRAR ENTRADA</button>
-        <button class="btn-out" onclick="prepararEnvio('SALIDA', 'ADMIN')">REGISTRAR SALIDA</button>
-        <button onclick="location.reload()" style="background:#7f8c8d;">VOLVER</button>
-    </div>
+    <button id="btnIn" class="btn-in" onclick="prepararEnvio('ENTRADA')" disabled>🟢 MARCAR INGRESO</button>
+    <button id="btnOut" class="btn-out" onclick="prepararEnvio('SALIDA')" disabled>🔴 MARCAR SALIDA</button>
+    
+    <button onclick="location.reload()" style="background:#7f8c8d; height:40px; font-size:14px; margin-top:15px;">SALIR / CERRAR SESIÓN</button>
 </div>
 
 <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbzm4Lo9H5sDQuM-M5f-4KQjWXXYxn2vkGyMjx9_E2YEqii0UlCr5CZplg9CziHbk2fD9A/exec";
-    let datosLocales = { trabajadores: [], obras: [] }, geoLat = 0, geoLong = 0, empleadoActual = null, ubicacionValida = false;
+    let datosLocales = { trabajadores: [], obras: [] }, geoLat = 0, geoLong = 0, empleadoActual = null;
 
     function validarApp() {
         if (document.getElementById("appPin").value === "2024") {
             document.getElementById("access-screen").classList.add("hidden");
             document.getElementById("main-content").classList.remove("hidden");
-            iniciarApp
+            iniciar();
+        } else alert("PIN de App incorrecto");
+    }
+
+    function iniciar() {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } }).then(s => document.getElementById('video').srcObject = s);
+        navigator.geolocation.watchPosition(p => { geoLat = p.coords.latitude; geoLong = p.coords.longitude; validarTodo(); }, null, {enableHighAccuracy:true});
+        fetch(API_URL).then(r => r.json()).then(res => { datosLocales = res; });
+    }
+
+    // VALIDACIÓN DE PIN TRABAJADOR
+    document.getElementById("userPinInput").addEventListener("input", function(e) {
+        const pin = e.target.value;
+        if (pin.length === 4) {
+            const user = datosLocales.trabajadores.find(t => String(t.pin) === pin);
+            if (user) {
+                empleadoActual = user.nombre;
+                document.getElementById("nombreDetectado").innerText = "👤 Hola, " + empleadoActual;
+                e.target.style.borderColor = "#27ae60";
+                e.target.disabled = true; // Bloquea el PIN una vez aceptado
+                validarTodo();
+            } else {
+                alert("PIN incorrecto o no registrado");
+                e.target.value = "";
+                empleadoActual = null;
+            }
+        }
+    });
+
+    function validarTodo() {
+        if (!datosLocales.obras.length) return;
+        
+        let obraCercana = null, minDist = Infinity;
+        datosLocales.obras.forEach(o => {
+            const d = calcD(geoLat, geoLong, o.lat, o.long);
+            if (d < minDist) { minDist = d; obraCercana = o; }
+        });
+
+        const status = document.getElementById("status");
+        const obraSelect = document.getElementById("obraUsuario");
+
+        // SI HAY OBRA CERCA
+        if (obraCercana && minDist <= obraCercana.radio) {
+            obraSelect.innerHTML = `<option value="${obraCercana.nombre}">${obraCercana.nombre}</option>`;
+            status.innerText = "📍 UBICACIÓN OK"; status.style.color = "green";
+            
+            // SOLO ACTIVA BOTONES SI EL EMPLEADO YA PUSO SU PIN
+            if (empleadoActual) {
+                document.getElementById("btnIn").disabled = false;
+                document.getElementById("btnOut").disabled = false;
+            }
+        } else {
+            status.innerText = "❌ FUERA DE RANGO"; status.style.color = "red";
+            document.getElementById("btnIn").disabled = true;
+            document.getElementById("btnOut").disabled = true;
+        }
+    }
+
+    function calcD(l1, n1, l2, n2) {
+        const R = 6371000, a = Math.sin(((l2-l1)*Math.PI/180)/2)**2 + Math.cos(l1*Math.PI/180)*Math.cos(l2*Math.PI/180)*Math.sin(((n2-n1)*Math.PI/180)/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    async function prepararEnvio(tipo) {
+        // DOBLE CANDADO: Si por algún error técnico empleadoActual es nulo, no deja enviar.
+        if (!empleadoActual) {
+            alert("Error: Identifícate con tu PIN primero.");
+            location.reload();
+            return;
+        }
+
+        const obra = document.getElementById("obraUsuario").value;
+        document.getElementById("status").innerText = "⏳ Verificando historial...";
+        
+        try {
+            const res = await fetch(`${API_URL}?nombre=${encodeURIComponent(empleadoActual)}&check=true`);
+            const val = await res.json();
+            if (val.ultimoTipo === tipo) { 
+                alert("⚠️ Ya registraste una " + tipo + " anteriormente."); 
+                location.reload(); 
+                return; 
+            }
+            enviar(tipo, empleadoActual, obra);
+        } catch (e) { enviar(tipo, empleadoActual, obra); }
+    }
+
+    function enviar(tipo, nombre, obra) {
+        // DESACTIVA BOTONES AL CLIC PARA EVITAR DOBLE ENVÍO
+        document.getElementById("btnIn").disabled = true;
+        document.getElementById("btnOut").disabled = true;
+
+        const c = document.getElementById('canvas'), v = document.getElementById('video');
+        c.width = 640; c.height = 480;
+        c.getContext('2d').drawImage(v, 0, 0, 640, 480);
+        const foto = c.toDataURL('image/jpeg', 0.5);
+        
+        fetch(API_URL, { method: "POST", mode: 'no-cors', body: JSON.stringify({ trabajador: nombre, obra: obra, tipo: tipo, lat: geoLat, long: geoLong, tipoAcceso: 'AUTO', foto: foto }) })
+        .then(() => { alert("✅ Registro Exitoso para: " + nombre); location.reload(); });
+    }
+</script>
+</body>
+</html>
