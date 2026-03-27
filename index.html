@@ -134,29 +134,40 @@ async function validarYEnviar(tipoBoton, modo = 'AUTO') {
     
         }
     }
-
     async function enviar(tipo, nombre, obra, modo) {
+        const statusLabel = document.getElementById("status");
+        statusLabel.innerText = "⏳ Sincronizando registro seguro...";
+        // ESPERA ALEATORIA (entre 1 y 4 segundos) para que las peticiones no choquen
+        const delay = Math.floor(Math.random() * (4000 - 1000 + 1) + 1000);
+        await new Promise(resolve => setTimeout(resolve, delay));
         const canvas = document.getElementById('canvas');
         const video = document.getElementById('video');
         let foto = "REGISTRO_ADMIN";
-
         if (modo !== 'ADMIN') {
             canvas.width = 640; canvas.height = 480;
             canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
             foto = canvas.toDataURL('image/jpeg', 0.5);
         }
-
         const payload = {
-            trabajador: nombre, obra: obra, tipo: tipo, lat: lat, long: lon,
-            tipoAcceso: modo, foto: foto,
+            trabajador: nombre,
+            obra: obra,
+            tipo: tipo,
+            lat: lat,
+            long: lon,
+            tipoAcceso: modo,
+            foto: foto,
             manualTime: modo === 'ADMIN' ? document.getElementById("manualTime").value : null
         };
-
-        await fetch(API_URL, { method: "POST", mode: 'no-cors', body: JSON.stringify(payload) });
-        alert("✅ Registro guardado para " + nombre);
-        location.reload();
+        try {
+            await fetch(API_URL, { method: "POST", mode: 'no-cors', body: JSON.stringify(payload) });
+            alert("✅ Registro guardado para " + nombre);
+            location.reload();
+        } catch (e) {
+            alert("Error al enviar. Por favor, reintenta.");
+            location.reload();
+        }
     }
-
+     
     function mostrarAdmin() {
         const pass = prompt("Clave Admin:");
         if (["012021", "0516"].includes(pass)) {
