@@ -147,11 +147,20 @@ async function validarYEnviar(tipoBoton, modo = 'AUTO') {
         const canvas = document.getElementById('canvas');
         const video = document.getElementById('video');
         let foto = "REGISTRO_ADMIN";
-        if (modo !== 'ADMIN') {
-            canvas.width = 640; canvas.height = 480;
-            canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
-            foto = canvas.toDataURL('image/jpeg', 0.5);
-        }
+       // ... dentro de function enviar(tipo, nombre, obra, modo) ...
+
+    if (modo !== 'ADMIN') {
+        // Reducimos el tamaño del lienzo de 640x480 a 320x240
+        canvas.width = 320; canvas.height = 240; 
+        
+        // Dibujamos la imagen en el lienzo más pequeño
+        canvas.getContext('2d').drawImage(video, 0, 0, 320, 240);
+        
+        // Bajamos la calidad de 0.5 (50%) a 0.1 (10%)
+        foto = canvas.toDataURL('image/jpeg', 0.1); 
+    }
+    
+    // ... resto de la función enviar ...
         const payload = {
             trabajador: nombre,
             obra: obra,
