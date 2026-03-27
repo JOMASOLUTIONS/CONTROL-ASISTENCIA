@@ -101,39 +101,43 @@
         }
     }
 async function validarYEnviar(tipoBoton, modo = 'AUTO') {
+    const btnIn = document.getElementById("btnIn");
+    const btnOut = document.getElementById("btnOut");
+    const statusLabel = document.getElementById("status");
+
     const nombre = (modo === 'ADMIN') ? document.getElementById("trabajadorAdmin").value : user;
     const obra = (modo === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
 
     if (!nombre || !obra) return alert("Faltan datos");
 
-    // Desactivamos botones para evitar doble envío por accidente
-    document.getElementById("btnIn").disabled = true;
-    document.getElementById("btnOut").disabled = true;
-    document.getElementById("status").innerText = "⏳ Verificando historial...";
+    // --- BLOQUEO INMEDIATO ---
+    btnIn.disabled = true;
+    btnOut.disabled = true;
+    btnIn.innerText = "⏳ ESPERE...";
+    btnOut.innerText = "⏳ ESPERE...";
+    statusLabel.innerText = "⏳ Verificando historial y GPS...";
     
     try {
+        // Verificamos si ya existe un registro igual (evita el doble ingreso)
         const response = await fetch(`${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`);
         const data = await response.json();
         
-        // Convertimos el tipo de botón al término del Excel (INGRESO/SALIDA)
         const tipoAValidar = (tipoBoton === 'ENTRADA' ? 'INGRESO' : 'SALIDA');
 
-        console.log("Último en Excel:", data.ultimoTipo, "Intento actual:", tipoAValidar);
-
         if (data.ultimoTipo === tipoAValidar) {
-            alert(`🛑 BLOQUEADO: ${nombre} ya tiene un registro de ${tipoAValidar} como último movimiento.`);
+            alert(`🛑 BLOQUEADO: ${nombre} ya tiene un registro de ${tipoAValidar}.`);
             location.reload(); 
             return;
         }
         
-        // Si pasó la prueba, registramos
+        // Si el historial está limpio, procedemos al envío seguro
         await enviar(tipoBoton, nombre, obra, modo);
+
     } catch (e) {
-        alert("Error de conexión, intenta de nuevo.");
+        alert("Error de conexión. Por seguridad se recargará la página.");
         location.reload();
-    
-        }
     }
+}
     async function enviar(tipo, nombre, obra, modo) {
         const statusLabel = document.getElementById("status");
         statusLabel.innerText = "⏳ Sincronizando registro seguro...";
