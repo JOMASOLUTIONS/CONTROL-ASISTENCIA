@@ -106,35 +106,38 @@ async function validarYEnviar(tipoBoton, modo = 'AUTO') {
     const statusLabel = document.getElementById("status");
 
     const nombre = (modo === 'ADMIN') ? document.getElementById("trabajadorAdmin").value : user;
-    const obra = (modo === 'ADMIN') ? document.getElementById("obraAdmin").value : document.getElementById("obraUsuario").value;
+    const campoObra = (modo === 'ADMIN') ? document.getElementById("obraAdmin") : document.getElementById("obraUsuario");
+    const obra = campoObra.value;
 
     if (!nombre || !obra) return alert("Faltan datos");
 
-    // --- BLOQUEO INMEDIATO ---
+    // --- BLOQUEO FÍSICO DE BOTONES ---
     btnIn.disabled = true;
     btnOut.disabled = true;
-    btnIn.innerText = "⏳ ESPERE...";
-    btnOut.innerText = "⏳ ESPERE...";
-    statusLabel.innerText = "⏳ Verificando historial y GPS...";
+    btnIn.style.opacity = "0.5";
+    btnOut.style.opacity = "0.5";
+    btnIn.innerText = "⌛ PROCESANDO...";
+    btnOut.innerText = "⌛ PROCESANDO...";
+    statusLabel.innerText = "⏳ Verificando duplicados...";
     
     try {
-        // Verificamos si ya existe un registro igual (evita el doble ingreso)
+        // Consultamos el último registro real en el Excel
         const response = await fetch(`${API_URL}?nombre=${encodeURIComponent(nombre)}&check=true`);
         const data = await response.json();
         
         const tipoAValidar = (tipoBoton === 'ENTRADA' ? 'INGRESO' : 'SALIDA');
 
         if (data.ultimoTipo === tipoAValidar) {
-            alert(`🛑 BLOQUEADO: ${nombre} ya tiene un registro de ${tipoAValidar}.`);
+            alert(`🛑 REGISTRO DUPLICADO: ${nombre} ya marcó ${tipoAValidar}.`);
             location.reload(); 
             return;
         }
         
-        // Si el historial está limpio, procedemos al envío seguro
+        // Si todo está bien, enviamos
         await enviar(tipoBoton, nombre, obra, modo);
 
     } catch (e) {
-        alert("Error de conexión. Por seguridad se recargará la página.");
+        alert("Error de red. Reintentando...");
         location.reload();
     }
 }
